@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -9,16 +10,19 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/nextdoor/vigil/internal/discovery"
 	"github.com/nextdoor/vigil/pkg/config"
+	"github.com/nextdoor/vigil/pkg/metrics"
 )
 
 // NodeReadinessReconciler watches nodes with a configured startup taint and
 // removes the taint once all expected DaemonSet pods are Ready.
 type NodeReadinessReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
-	Log    logr.Logger
-	Config *config.Config
+	Scheme    *runtime.Scheme
+	Log       logr.Logger
+	Config    *config.Config
+	Discovery *discovery.DaemonSetDiscovery
 }
 
 // Reconcile handles a single node reconciliation.
@@ -43,12 +47,29 @@ func (r *NodeReadinessReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, nil
 	}
 
-	log.Info("node has startup taint, reconciliation pending",
+	log.Info("node has startup taint, discovering expected DaemonSets",
 		"taint-key", r.Config.TaintKey,
 		"node-age", node.CreationTimestamp.Time,
 	)
 
-	// TODO: Phase 2 — DaemonSet discovery
+	// Discover expected DaemonSets for this node.
+	expectedDS, err := r.Discovery.ExpectedDaemonSets(ctx, &node)
+	if err != nil {
+		metrics.ReconcileErrors.Inc()
+		return ctrl.Result{}, fmt.Errorf("discovering expected daemonsets: %w", err)
+	}
+
+	metrics.ExpectedDaemonSets.WithLabelValues(node.Name).Set(float64(len(expectedDS)))
+
+	dsNames := make([]string, len(expectedDS))
+	for i, ds := range expectedDS {
+		dsNames[i] = fmt.Sprintf("%s/%s", ds.Namespace, ds.Name)
+	}
+	log.Info("discovered expected DaemonSets",
+		"count", len(expectedDS),
+		"daemonsets", dsNames,
+	)
+
 	// TODO: Phase 3 — Pod readiness checking
 	// TODO: Phase 4 — Taint removal
 

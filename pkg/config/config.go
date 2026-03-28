@@ -31,12 +31,29 @@ type Config struct {
 type ExcludeDaemonSets struct {
 	// ByName excludes specific DaemonSets by namespace/name.
 	ByName []DaemonSetRef `mapstructure:"byName"`
+
+	// ByLabel excludes DaemonSets matching a label selector.
+	// DaemonSet owners can self-service opt out by adding the configured label.
+	ByLabel *LabelSelector `mapstructure:"byLabel"`
 }
 
 // DaemonSetRef identifies a DaemonSet by namespace and name.
 type DaemonSetRef struct {
 	Namespace string `mapstructure:"namespace"`
 	Name      string `mapstructure:"name"`
+}
+
+// LabelSelector defines a label-based exclusion selector.
+type LabelSelector struct {
+	MatchLabels      map[string]string          `mapstructure:"matchLabels"`
+	MatchExpressions []LabelSelectorRequirement `mapstructure:"matchExpressions"`
+}
+
+// LabelSelectorRequirement is a single requirement for label matching.
+type LabelSelectorRequirement struct {
+	Key      string   `mapstructure:"key"`
+	Operator string   `mapstructure:"operator"`
+	Values   []string `mapstructure:"values"`
 }
 
 // NewDefault returns a Config with default values.

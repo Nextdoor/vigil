@@ -16,6 +16,7 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/nextdoor/vigil/internal/controller"
+	"github.com/nextdoor/vigil/internal/discovery"
 	"github.com/nextdoor/vigil/pkg/config"
 )
 
@@ -81,11 +82,18 @@ func main() {
 		os.Exit(1)
 	}
 
+	dsDiscovery := discovery.New(
+		mgr.GetClient(),
+		ctrl.Log.WithName("discovery"),
+		cfg,
+	)
+
 	if err = (&controller.NodeReadinessReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		Log:    ctrl.Log.WithName("node-readiness"),
-		Config: cfg,
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		Log:       ctrl.Log.WithName("node-readiness"),
+		Config:    cfg,
+		Discovery: dsDiscovery,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "NodeReadiness")
 		os.Exit(1)

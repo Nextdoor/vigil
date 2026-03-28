@@ -15,6 +15,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	"github.com/nextdoor/vigil/internal/discovery"
 	"github.com/nextdoor/vigil/pkg/config"
 )
 
@@ -32,12 +33,14 @@ func TestReconcile_NodeWithoutTaint(t *testing.T) {
 		},
 	}
 
+	cfg := config.NewDefault()
 	cl := fake.NewClientBuilder().WithScheme(scheme).WithObjects(node).Build()
 	r := &NodeReadinessReconciler{
-		Client: cl,
-		Scheme: scheme,
-		Log:    logr.Discard(),
-		Config: config.NewDefault(),
+		Client:    cl,
+		Scheme:    scheme,
+		Log:       logr.Discard(),
+		Config:    cfg,
+		Discovery: discovery.New(cl, logr.Discard(), cfg),
 	}
 
 	result, err := r.Reconcile(context.Background(), ctrl.Request{
@@ -66,10 +69,11 @@ func TestReconcile_NodeWithTaint(t *testing.T) {
 
 	cl := fake.NewClientBuilder().WithScheme(scheme).WithObjects(node).Build()
 	r := &NodeReadinessReconciler{
-		Client: cl,
-		Scheme: scheme,
-		Log:    logr.Discard(),
-		Config: cfg,
+		Client:    cl,
+		Scheme:    scheme,
+		Log:       logr.Discard(),
+		Config:    cfg,
+		Discovery: discovery.New(cl, logr.Discard(), cfg),
 	}
 
 	result, err := r.Reconcile(context.Background(), ctrl.Request{
@@ -81,12 +85,14 @@ func TestReconcile_NodeWithTaint(t *testing.T) {
 
 func TestReconcile_NodeNotFound(t *testing.T) {
 	scheme := newTestScheme()
+	cfg := config.NewDefault()
 	cl := fake.NewClientBuilder().WithScheme(scheme).Build()
 	r := &NodeReadinessReconciler{
-		Client: cl,
-		Scheme: scheme,
-		Log:    logr.Discard(),
-		Config: config.NewDefault(),
+		Client:    cl,
+		Scheme:    scheme,
+		Log:       logr.Discard(),
+		Config:    cfg,
+		Discovery: discovery.New(cl, logr.Discard(), cfg),
 	}
 
 	result, err := r.Reconcile(context.Background(), ctrl.Request{
