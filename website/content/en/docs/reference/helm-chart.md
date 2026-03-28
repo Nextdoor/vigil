@@ -26,7 +26,7 @@ helm install vigil vigil/vigil-controller \
 | `config.taintKey` | `node.nextdoor.com/initializing` | Taint key to watch |
 | `config.taintEffect` | `NoSchedule` | Taint effect |
 | `config.timeoutSeconds` | `120` | Timeout before forced removal |
-| `config.startupTaintKeys` | See values.yaml | All startup taint keys |
+| `config.knownStartupTaintKeys` | See values.yaml | Temporary startup taints to ignore during discovery |
 | `serviceMonitor.enabled` | `false` | Create ServiceMonitor |
 | `resources.requests.cpu` | `100m` | CPU request |
 | `resources.requests.memory` | `64Mi` | Memory request |

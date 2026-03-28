@@ -15,10 +15,21 @@ type Config struct {
 	// TaintEffect is the taint effect to match.
 	TaintEffect string `mapstructure:"taintEffect"`
 
-	// StartupTaintKeys is the list of ALL startup taint keys present in this cluster.
-	// These are stripped from the node's taint list when evaluating DaemonSet
-	// tolerations, so that discovery answers "will this DS run in steady state?"
-	StartupTaintKeys []string `mapstructure:"startupTaintKeys"`
+	// KnownStartupTaintKeys lists ALL temporary startup taint keys used in the cluster.
+	//
+	// Vigil only removes the taint specified by TaintKey. However, new nodes often
+	// have additional temporary taints set by other controllers (e.g., CSI drivers,
+	// CNI plugins). These taints are removed by their respective controllers — not
+	// by Vigil.
+	//
+	// This list is used solely for DaemonSet discovery: when determining which
+	// DaemonSets should run on a node in steady state, Vigil strips these taints
+	// before evaluating scheduling predicates. Without this, DaemonSets that don't
+	// tolerate these temporary taints would be incorrectly excluded from the
+	// expected set.
+	//
+	// Must include TaintKey itself plus any other startup taints in the cluster.
+	KnownStartupTaintKeys []string `mapstructure:"knownStartupTaintKeys"`
 
 	// TimeoutSeconds is the maximum time to wait before removing the taint anyway.
 	TimeoutSeconds int `mapstructure:"timeoutSeconds"`
@@ -67,7 +78,7 @@ func NewDefault() *Config {
 	return &Config{
 		TaintKey:    "node.nextdoor.com/initializing",
 		TaintEffect: "NoSchedule",
-		StartupTaintKeys: []string{
+		KnownStartupTaintKeys: []string{
 			"node.nextdoor.com/initializing",
 		},
 		TimeoutSeconds:          120,

@@ -48,7 +48,7 @@ func (d *DaemonSetDiscovery) ExpectedDaemonSets(ctx context.Context, node *corev
 	}
 
 	// Compute steady-state taints: node taints minus all configured startup taint keys.
-	steadyStateTaints := steadyStateTaints(node.Spec.Taints, d.config.StartupTaintKeys)
+	steadyStateTaints := steadyStateTaints(node.Spec.Taints, d.config.KnownStartupTaintKeys)
 
 	// Build exclusion lookup.
 	excludeByName := buildNameExclusionSet(d.config.ExcludeDaemonSets.ByName)

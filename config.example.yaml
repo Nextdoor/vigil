@@ -7,11 +7,20 @@ taintKey: "node.nextdoor.com/initializing"
 # The taint effect to match
 taintEffect: "NoSchedule"
 
-# ALL startup taint keys present in this cluster.
-# These are stripped from the node's taint list when evaluating DaemonSet
-# tolerations, so that discovery answers "will this DS run in steady state?"
-# rather than "can this DS tolerate the node right now?"
-startupTaintKeys:
+# All known temporary startup taint keys used in the cluster.
+#
+# Vigil only removes the taint specified by taintKey above. However, new nodes
+# often have additional temporary taints set by other controllers (CSI drivers,
+# CNI plugins, etc.). Those taints are removed by their respective controllers,
+# not by Vigil.
+#
+# This list is used only for DaemonSet discovery: Vigil strips these taints
+# before evaluating which DaemonSets should run on a node in steady state.
+# Without this, DaemonSets that don't tolerate these temporary taints would be
+# incorrectly excluded from the expected set.
+#
+# Must include taintKey itself plus any other startup taints in the cluster.
+knownStartupTaintKeys:
   - "node.nextdoor.com/initializing"
   - "cni.istio.io/not-ready"
   - "ebs.csi.aws.com/agent-not-ready"

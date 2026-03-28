@@ -154,7 +154,21 @@ skipConfig: false
 config:
   taintKey: "node.nextdoor.com/initializing"
   taintEffect: "NoSchedule"
-  startupTaintKeys:
+  # -- All known temporary startup taint keys used in the cluster.
+  # Vigil only removes the taint specified by taintKey. However, new nodes often
+  # have additional temporary taints set by other controllers (CSI drivers, CNI
+  # plugins, etc.). Those controllers remove their own taints — Vigil does not
+  # touch them.
+  #
+  # This list is used solely for DaemonSet discovery: when determining which
+  # DaemonSets should run on a node in steady state, Vigil strips these taints
+  # before evaluating scheduling predicates. Without this, DaemonSets that don't
+  # tolerate these temporary taints would be incorrectly excluded from Vigil's
+  # expected set, causing it to remove its taint too early.
+  #
+  # Must include taintKey itself. Add any other startup taints used by your
+  # infrastructure (CSI drivers, CNI plugins, GPU initializers, etc.).
+  knownStartupTaintKeys:
     - "node.nextdoor.com/initializing"
     - "cni.istio.io/not-ready"
     - "ebs.csi.aws.com/agent-not-ready"
