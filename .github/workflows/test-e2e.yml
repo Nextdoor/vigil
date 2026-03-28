@@ -20,16 +20,41 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Install the latest version of kind
+      - name: Install kind
         run: |
           curl -Lo ./kind https://kind.sigs.k8s.io/dl/latest/kind-linux-$(go env GOARCH)
           chmod +x ./kind
           sudo mv ./kind /usr/local/bin/kind
+          kind version
 
-      - name: Verify kind installation
-        run: kind version
+      - name: Set up Helm
+        uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5
+        with:
+          version: v3.16.3
 
-      - name: Running Test e2e
+      - name: Install kubectl
+        run: |
+          curl -LO "https://dl.k8s.io/release/v1.31.0/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/kubectl
+          kubectl version --client
+
+      - name: Run E2E tests
         run: |
           go mod tidy
           make test-e2e
+
+      - name: Dump cluster state on failure
+        if: failure()
+        run: |
+          export KUBECONFIG=$(kind get kubeconfig-path --name=vigil-e2e 2>/dev/null || echo "$HOME/.kube/config")
+          echo "=== Pods ==="
+          kubectl get pods -A || true
+          echo "=== Events ==="
+          kubectl get events -n vigil-system --sort-by='.lastTimestamp' || true
+          echo "=== Controller Logs ==="
+          kubectl logs -n vigil-system -l app.kubernetes.io/name=vigil-controller --tail=200 || true
+
+      - name: Cleanup KIND cluster
+        if: always()
+        run: kind delete cluster --name vigil-e2e || true
