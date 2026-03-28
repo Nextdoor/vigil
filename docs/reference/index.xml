@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Reference on Vigil Controller</title><link>https://oss.nextdoor.com/vigil-controller/docs/reference/</link><description>Recent content in Reference on Vigil Controller</description><generator>Hugo</generator><language>en</language><atom:link href="https://oss.nextdoor.com/vigil-controller/docs/reference/index.xml" rel="self" type="application/rss+xml"/><item><title>Configuration</title><link>https://oss.nextdoor.com/vigil-controller/docs/reference/configuration/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://oss.nextdoor.com/vigil-controller/docs/reference/configuration/</guid><description>&lt;h2 id="configuration-file">Configuration File&lt;/h2>
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Reference on Vigil Controller</title><link>https://oss.nextdoor.com/vigil/docs/reference/</link><description>Recent content in Reference on Vigil Controller</description><generator>Hugo</generator><language>en</language><atom:link href="https://oss.nextdoor.com/vigil/docs/reference/index.xml" rel="self" type="application/rss+xml"/><item><title>Configuration</title><link>https://oss.nextdoor.com/vigil/docs/reference/configuration/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://oss.nextdoor.com/vigil/docs/reference/configuration/</guid><description>&lt;h2 id="configuration-file">Configuration File&lt;/h2>
 &lt;p>Vigil reads configuration from a YAML file (default: &lt;code>/etc/vigil/config/config.yaml&lt;/code>).&lt;/p>
 &lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e"># The taint key to watch for and remove&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#f92672">taintKey&lt;/span>: &lt;span style="color:#e6db74">&amp;#34;node.example.com/initializing&amp;#34;&lt;/span>
@@ -100,7 +100,7 @@
  &lt;td>DaemonSets to exclude by namespace/name&lt;/td>
  &lt;/tr>
  &lt;/tbody>
-&lt;/table></description></item><item><title>Metrics</title><link>https://oss.nextdoor.com/vigil-controller/docs/reference/metrics/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://oss.nextdoor.com/vigil-controller/docs/reference/metrics/</guid><description>&lt;h2 id="metrics">Metrics&lt;/h2>
+&lt;/table></description></item><item><title>Metrics</title><link>https://oss.nextdoor.com/vigil/docs/reference/metrics/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://oss.nextdoor.com/vigil/docs/reference/metrics/</guid><description>&lt;h2 id="metrics">Metrics&lt;/h2>
 &lt;table>
  &lt;thead>
  &lt;tr>
@@ -158,10 +158,10 @@
  &lt;/tbody>
 &lt;/table>
 &lt;h2 id="alerting">Alerting&lt;/h2>
-&lt;p>Recommended alert rules:&lt;/p></description></item><item><title>Helm Chart</title><link>https://oss.nextdoor.com/vigil-controller/docs/reference/helm-chart/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://oss.nextdoor.com/vigil-controller/docs/reference/helm-chart/</guid><description>&lt;h2 id="installation">Installation&lt;/h2>
-&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>helm repo add vigil-controller https://oss.nextdoor.com/vigil-controller
+&lt;p>Recommended alert rules:&lt;/p></description></item><item><title>Helm Chart</title><link>https://oss.nextdoor.com/vigil/docs/reference/helm-chart/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://oss.nextdoor.com/vigil/docs/reference/helm-chart/</guid><description>&lt;h2 id="installation">Installation&lt;/h2>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>helm repo add vigil https://oss.nextdoor.com/vigil
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>helm repo update
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>helm install vigil vigil-controller/vigil-controller &lt;span style="color:#ae81ff">\
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>helm install vigil vigil/vigil-controller &lt;span style="color:#ae81ff">\
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#ae81ff">&lt;/span> --namespace vigil-system &lt;span style="color:#ae81ff">\
 &lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#ae81ff">&lt;/span> --create-namespace
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="key-values">Key Values&lt;/h2>
@@ -181,7 +181,7 @@
  &lt;/tr>
  &lt;tr>
  &lt;td>&lt;code>image.repository&lt;/code>&lt;/td>
- &lt;td>&lt;code>ghcr.io/nextdoor/vigil-controller&lt;/code>&lt;/td>
+ &lt;td>&lt;code>ghcr.io/nextdoor/vigil&lt;/code>&lt;/td>
  &lt;td>Container image&lt;/td>
  &lt;/tr>
  &lt;tr>
@@ -246,4 +246,4 @@
  &lt;/tr>
  &lt;/tbody>
 &lt;/table>
-&lt;p>See the full &lt;a href="https://github.com/Nextdoor/vigil-controller/blob/main/charts/vigil-controller/values.yaml">values.yaml&lt;/a> for all options.&lt;/p></description></item></channel></rss>
+&lt;p>See the full &lt;a href="https://github.com/Nextdoor/vigil/blob/main/charts/vigil-controller/values.yaml">values.yaml&lt;/a> for all options.&lt;/p></description></item></channel></rss>
