@@ -54,11 +54,18 @@ var _ = Describe("Node Readiness Controller", Ordered, func() {
 		})
 
 		It("should pass health checks", func() {
-			endpoints, err := clientset.CoreV1().Endpoints(helmNamespace).Get(ctx,
-				helmReleaseName+"-vigil-controller-metrics", metav1.GetOptions{})
+			// Find the metrics service by label selector
+			svcs, err := clientset.CoreV1().Services(helmNamespace).List(ctx, metav1.ListOptions{
+				LabelSelector: "app.kubernetes.io/name=vigil-controller",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(svcs.Items).NotTo(BeEmpty(), "should find at least one service")
+
+			svcName := svcs.Items[0].Name
+			endpoints, err := clientset.CoreV1().Endpoints(helmNamespace).Get(ctx, svcName, metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(endpoints.Subsets).NotTo(BeEmpty(),
-				"metrics service should have endpoints")
+				"metrics service %s should have endpoints", svcName)
 		})
 
 		It("should have started the manager and node-readiness controller", func() {
@@ -109,33 +116,28 @@ var _ = Describe("Node Readiness Controller", Ordered, func() {
 	})
 
 	Context("metrics endpoint", func() {
-		It("should expose Prometheus metrics via port-forward", func() {
-			pods, err := clientset.CoreV1().Pods(helmNamespace).List(ctx, metav1.ListOptions{
+		It("should expose Prometheus metrics", func() {
+			// Run a curl pod to hit the metrics service from inside the cluster
+			svcs, err := clientset.CoreV1().Services(helmNamespace).List(ctx, metav1.ListOptions{
 				LabelSelector: "app.kubernetes.io/name=vigil-controller",
 			})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(pods.Items).NotTo(BeEmpty())
+			Expect(svcs.Items).NotTo(BeEmpty())
 
-			// Start port-forward in background
-			portForward := exec.Command("kubectl", "port-forward",
-				fmt.Sprintf("pod/%s", pods.Items[0].Name),
-				"18080:8080", "-n", helmNamespace)
-			portForward.Dir = projectRoot()
-			err = portForward.Start()
-			Expect(err).NotTo(HaveOccurred())
-			defer func() { _ = portForward.Process.Kill() }()
+			svcName := svcs.Items[0].Name
+			metricsURL := fmt.Sprintf("http://%s.%s.svc:8080/metrics", svcName, helmNamespace)
 
-			// Wait for port-forward to be ready
-			time.Sleep(2 * time.Second)
-
-			// Curl the metrics endpoint from the host
 			Eventually(func() string {
-				out, err := exec.Command("curl", "-sf", "http://localhost:18080/metrics").Output()
-				if err != nil {
-					return ""
-				}
+				cmd := exec.Command("kubectl", "run", "curl-test", "--rm", "-i",
+					"--restart=Never", "--image=curlimages/curl:8.5.0",
+					"-n", helmNamespace,
+					"--", "curl", "-sf", "--max-time", "5", metricsURL)
+				out, _ := cmd.CombinedOutput()
+				// Clean up in case the pod lingers
+				_ = exec.Command("kubectl", "delete", "pod", "curl-test",
+					"-n", helmNamespace, "--ignore-not-found").Run()
 				return string(out)
-			}).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).Should(
+			}).WithTimeout(60 * time.Second).WithPolling(5 * time.Second).Should(
 				ContainSubstring("controller_runtime_reconcile_total"),
 				"metrics should include controller-runtime reconcile metrics")
 		})
