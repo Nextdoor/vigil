@@ -1,0 +1,44 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/*
+dist/
+Dockerfile.cross
+
+# Test artifacts
+*.test
+cover*.out
+cover*.html
+
+# Go workspace
+go.work
+
+# Generated files (keep vendored)
+!vendor/**/zz_generated.*
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# Secrets
+*.kubeconfig
+config.yaml
+config.local.yaml
+
+# Helm chart artifacts
+*.tgz
+.deploy/
+charts/vigil-controller/Chart.lock
+charts/vigil-controller/charts/
+
+# Hugo
+website/node_modules/
+website/public/
+website/resources/
+website/.hugo_build.lock

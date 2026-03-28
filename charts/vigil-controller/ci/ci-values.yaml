@@ -1,0 +1,16 @@
+# Minimal values for CI testing
+replicaCount: 1
+
+controllerManager:
+  leaderElection:
+    enabled: false
+  logLevel: "debug"
+  metricsSecure: false
+
+resources:
+  limits:
+    cpu: 250m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi

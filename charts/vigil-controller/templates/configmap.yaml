@@ -1,0 +1,11 @@
+{{- if and (not .Values.skipConfig) .Values.config }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "vigil-controller.fullname" . }}-config
+  labels:
+    {{- include "vigil-controller.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    {{- toYaml .Values.config | nindent 4 }}
+{{- end }}

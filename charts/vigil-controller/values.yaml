@@ -1,0 +1,158 @@
+# -- Number of replicas for the controller deployment
+replicaCount: 2
+
+image:
+  # -- Container image repository
+  repository: ghcr.io/nextdoor/vigil-controller
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+  # -- Image tag (defaults to Chart appVersion)
+  tag: ""
+
+# -- Image pull secrets
+imagePullSecrets: []
+# -- Override the chart name
+nameOverride: ""
+# -- Override the full name
+fullnameOverride: ""
+
+serviceAccount:
+  # -- Create a service account
+  create: true
+  # -- Annotations for the service account
+  annotations: {}
+  # -- Service account name (generated if not set)
+  name: ""
+  # -- Automount API credentials
+  automount: true
+
+rbac:
+  # -- Create RBAC resources
+  create: true
+
+# -- Pod annotations
+podAnnotations: {}
+# -- Pod labels
+podLabels: {}
+
+# -- Pod security context
+podSecurityContext:
+  runAsNonRoot: true
+
+# -- Container security context
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+# -- Resource requests and limits
+resources:
+  limits:
+    cpu: 500m
+    memory: 128Mi
+  requests:
+    cpu: 100m
+    memory: 64Mi
+
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: health
+  initialDelaySeconds: 15
+  periodSeconds: 20
+
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: health
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+# -- Node selector
+nodeSelector: {}
+# -- Tolerations
+tolerations: []
+# -- Affinity rules
+affinity: {}
+
+# -- Additional volumes
+volumes: []
+# -- Additional volume mounts
+volumeMounts: []
+
+controllerManager:
+  leaderElection:
+    # -- Enable leader election
+    enabled: true
+  # -- Log level (debug, info, warn, error)
+  logLevel: "info"
+  # -- Health probe bind address
+  healthProbeBindAddress: ":8081"
+  # -- Metrics bind address
+  metricsBindAddress: ":8080"
+  # -- Enable metrics TLS
+  metricsSecure: false
+  # -- Enable metrics authentication
+  metricsAuth: false
+  metricsCerts:
+    path: ""
+    certName: "tls.crt"
+    keyName: "tls.key"
+  webhookCerts:
+    path: ""
+    certName: "tls.crt"
+    keyName: "tls.key"
+  # -- Enable HTTP/2
+  enableHttp2: false
+  zap:
+    # -- Enable development mode logging
+    devel: false
+    # -- Log encoder (json or console)
+    encoder: "json"
+    # -- Stack trace level
+    stacktraceLevel: "error"
+    # -- Time encoding
+    timeEncoding: "epoch"
+  # -- Extra arguments to pass to the controller
+  extraArgs: []
+
+metricsService:
+  # -- Metrics service type
+  type: ClusterIP
+  # -- Metrics service port
+  port: 8080
+  # -- Metrics service annotations
+  annotations: {}
+
+serviceMonitor:
+  # -- Create a ServiceMonitor resource
+  enabled: false
+  # -- Additional labels for the ServiceMonitor
+  labels: {}
+  # -- Annotations for the ServiceMonitor
+  annotations: {}
+  # -- Scrape interval
+  interval: "30s"
+  # -- Scrape timeout
+  scrapeTimeout: "10s"
+  # -- Relabeling configs
+  relabelings: []
+  # -- Metric relabeling configs
+  metricRelabelings: []
+
+# -- Skip loading the config file (use CLI flags only)
+skipConfig: false
+
+# -- Vigil controller configuration
+config:
+  taintKey: "node.nextdoor.com/initializing"
+  taintEffect: "NoSchedule"
+  startupTaintKeys:
+    - "node.nextdoor.com/initializing"
+    - "cni.istio.io/not-ready"
+    - "ebs.csi.aws.com/agent-not-ready"
+    - "efs.csi.aws.com/agent-not-ready"
+  timeoutSeconds: 120
+  excludeDaemonSets:
+    byName: []

@@ -1,0 +1,93 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "github>nextdoor/renovate:defaults",
+    "github>nextdoor/renovate:gentle-onboarding",
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits"
+  ],
+  "labels": ["dependencies"],
+  "semanticCommits": "enabled",
+  "commitMessagePrefix": "chore(deps):",
+  "separateMinorPatch": true,
+  "separateMajorMinor": true,
+  "prConcurrentLimit": 10,
+  "prHourlyLimit": 0,
+  "prCreation": "immediate",
+  "platformAutomerge": true,
+  "schedule": ["before 10am on monday"],
+  "timezone": "America/Los_Angeles",
+  "enabledManagers": ["gomod", "github-actions", "helmv3", "dockerfile"],
+  "postUpdateOptions": ["gomodTidy"],
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security"]
+  },
+  "osvVulnerabilityAlerts": true,
+  "packageRules": [
+    {
+      "description": "Group Go module patch updates",
+      "matchManagers": ["gomod"],
+      "matchUpdateTypes": ["patch"],
+      "groupName": "go-modules-patch",
+      "automerge": true
+    },
+    {
+      "description": "Group Go module minor updates",
+      "matchManagers": ["gomod"],
+      "matchUpdateTypes": ["minor"],
+      "groupName": "go-modules-minor",
+      "automerge": true
+    },
+    {
+      "description": "Go module major updates individually",
+      "matchManagers": ["gomod"],
+      "matchUpdateTypes": ["major"],
+      "automerge": true
+    },
+    {
+      "description": "Group GitHub Actions updates",
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions",
+      "automerge": true,
+      "pinDigests": true
+    },
+    {
+      "description": "Group Kubernetes packages",
+      "matchPackagePatterns": ["^k8s.io/", "^sigs.k8s.io/"],
+      "groupName": "kubernetes-packages",
+      "branchPrefix": "k8s-"
+    },
+    {
+      "description": "Group Prometheus packages",
+      "matchPackagePatterns": ["^github.com/prometheus/"],
+      "groupName": "prometheus-packages",
+      "branchPrefix": "prometheus-"
+    },
+    {
+      "description": "Group controller-runtime",
+      "matchPackagePatterns": ["^sigs.k8s.io/controller-runtime"],
+      "groupName": "controller-runtime",
+      "branchPrefix": "controller-runtime-"
+    },
+    {
+      "description": "Group Ginkgo/Gomega testing",
+      "matchPackagePatterns": ["^github.com/onsi/"],
+      "groupName": "testing-frameworks",
+      "branchPrefix": "testing-"
+    },
+    {
+      "description": "Pin Docker base image digests",
+      "matchManagers": ["dockerfile"],
+      "matchPackagePatterns": ["golang", "alpine"],
+      "pinDigests": true
+    },
+    {
+      "description": "Critical security patches",
+      "matchCategories": ["security"],
+      "prPriority": 10,
+      "labels": ["security"]
+    }
+  ]
+}

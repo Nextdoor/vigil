@@ -1,0 +1,68 @@
+baseURL: https://oss.nextdoor.com/vigil-controller/
+title: Vigil Controller
+languageCode: en-us
+defaultContentLanguage: en
+defaultContentLanguageInSubdir: false
+
+module:
+  hugoVersion:
+    extended: true
+    min: "0.146.0"
+  imports:
+    - path: github.com/google/docsy
+      disable: false
+
+languages:
+  en:
+    languageName: English
+    weight: 1
+    contentDir: content/en
+
+markup:
+  goldmark:
+    renderer:
+      unsafe: true
+
+outputs:
+  home:
+    - HTML
+
+enableRobotsTxt: true
+
+taxonomies: {}
+
+params:
+  ui:
+    navbar_logo: false
+    sidebar_menu_compact: true
+    breadcrumb_disable: false
+    sidebar_menu_foldable: true
+    feedback:
+      enable: false
+    readingtime:
+      enable: false
+  links:
+    user:
+      - name: GitHub Discussions
+        url: https://github.com/nextdoor/vigil-controller/discussions
+        icon: fab fa-github
+        desc: Ask questions and share ideas
+    developer:
+      - name: GitHub
+        url: https://github.com/nextdoor/vigil-controller
+        icon: fab fa-github
+        desc: Vigil Controller on GitHub
+  description: Node Readiness Controller for DaemonSet-Aware Startup Taints
+  offlineSearch: true
+  copyright: "The Vigil Controller Authors"
+
+menu:
+  main:
+    - name: Documentation
+      weight: 10
+      url: /docs/
+      pre: <i class='fas fa-book'></i>
+    - name: GitHub
+      weight: 50
+      url: https://github.com/nextdoor/vigil-controller
+      pre: <i class='fab fa-github'></i>

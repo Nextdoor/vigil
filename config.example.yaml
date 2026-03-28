@@ -1,0 +1,28 @@
+# Vigil Controller Configuration
+# Copy to config.local.yaml for local development (gitignored).
+
+# The taint key to watch for and remove
+taintKey: "node.nextdoor.com/initializing"
+
+# The taint effect to match
+taintEffect: "NoSchedule"
+
+# ALL startup taint keys present in this cluster.
+# These are stripped from the node's taint list when evaluating DaemonSet
+# tolerations, so that discovery answers "will this DS run in steady state?"
+# rather than "can this DS tolerate the node right now?"
+startupTaintKeys:
+  - "node.nextdoor.com/initializing"
+  - "cni.istio.io/not-ready"
+  - "ebs.csi.aws.com/agent-not-ready"
+  - "efs.csi.aws.com/agent-not-ready"
+
+# Maximum time to wait before removing taint anyway (seconds)
+timeoutSeconds: 120
+
+# DaemonSets to exclude from readiness checks
+excludeDaemonSets:
+  # Exclude by explicit namespace/name
+  byName: []
+  # - namespace: kube-system
+  #   name: slow-daemonset
