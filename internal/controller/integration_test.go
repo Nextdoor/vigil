@@ -2,7 +2,6 @@ package controller_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -51,12 +50,12 @@ func buildReconciler(cl client.Client, cfg *config.Config) *controller.NodeReadi
 	}
 }
 
-func makeDaemonSet(namespace, name string) *appsv1.DaemonSet {
+func makeDaemonSet(name string) *appsv1.DaemonSet {
 	return &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
+			Namespace: "kube-system",
 			Name:      name,
-			UID:       types.UID(fmt.Sprintf("ds-%s-%s", namespace, name)),
+			UID:       types.UID("ds-kube-system-" + name),
 		},
 		Spec: appsv1.DaemonSetSpec{
 			Selector: &metav1.LabelSelector{
@@ -91,10 +90,10 @@ func makeNode(name string, taintKey string) *corev1.Node {
 	return node
 }
 
-func makePod(namespace, name, nodeName string, ownerDS *appsv1.DaemonSet, phase corev1.PodPhase, ready bool) *corev1.Pod {
+func makePod(name, nodeName string, ownerDS *appsv1.DaemonSet, phase corev1.PodPhase, ready bool) *corev1.Pod {
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
+			Namespace: "kube-system",
 			Name:      name,
 		},
 		Spec: corev1.PodSpec{
@@ -145,11 +144,11 @@ func TestIntegration_TaintedNode_AllDSReady(t *testing.T) {
 	}
 
 	node := makeNode("worker-1", cfg.TaintKey)
-	ds1 := makeDaemonSet("kube-system", "kube-proxy")
-	ds2 := makeDaemonSet("kube-system", "node-exporter")
+	ds1 := makeDaemonSet("kube-proxy")
+	ds2 := makeDaemonSet("node-exporter")
 
-	pod1 := makePod("kube-system", "kube-proxy-w1", "worker-1", ds1, corev1.PodRunning, true)
-	pod2 := makePod("kube-system", "node-exporter-w1", "worker-1", ds2, corev1.PodRunning, true)
+	pod1 := makePod("kube-proxy-w1", "worker-1", ds1, corev1.PodRunning, true)
+	pod2 := makePod("node-exporter-w1", "worker-1", ds2, corev1.PodRunning, true)
 
 	cl := buildClient(node, ds1, ds2, pod1, pod2)
 	r := buildReconciler(cl, cfg)
@@ -172,12 +171,12 @@ func TestIntegration_TaintedNode_SomeDSNotReady(t *testing.T) {
 	}
 
 	node := makeNode("worker-1", cfg.TaintKey)
-	ds1 := makeDaemonSet("kube-system", "kube-proxy")
-	ds2 := makeDaemonSet("kube-system", "cni-plugin")
+	ds1 := makeDaemonSet("kube-proxy")
+	ds2 := makeDaemonSet("cni-plugin")
 
-	pod1 := makePod("kube-system", "kube-proxy-w1", "worker-1", ds1, corev1.PodRunning, true)
+	pod1 := makePod("kube-proxy-w1", "worker-1", ds1, corev1.PodRunning, true)
 	// cni-plugin pod is Pending — not ready yet.
-	pod2 := makePod("kube-system", "cni-plugin-w1", "worker-1", ds2, corev1.PodPending, false)
+	pod2 := makePod("cni-plugin-w1", "worker-1", ds2, corev1.PodPending, false)
 
 	cl := buildClient(node, ds1, ds2, pod1, pod2)
 	r := buildReconciler(cl, cfg)
@@ -201,7 +200,7 @@ func TestIntegration_TaintedNode_NoPods(t *testing.T) {
 	}
 
 	node := makeNode("worker-1", cfg.TaintKey)
-	ds := makeDaemonSet("kube-system", "kube-proxy")
+	ds := makeDaemonSet("kube-proxy")
 	// No pods at all — DS hasn't scheduled yet.
 
 	cl := buildClient(node, ds)
@@ -226,10 +225,10 @@ func TestIntegration_TaintedNode_PodBecomesReady(t *testing.T) {
 	}
 
 	node := makeNode("worker-1", cfg.TaintKey)
-	ds := makeDaemonSet("kube-system", "kube-proxy")
+	ds := makeDaemonSet("kube-proxy")
 
 	// Initially Pending.
-	pod := makePod("kube-system", "kube-proxy-w1", "worker-1", ds, corev1.PodPending, false)
+	pod := makePod("kube-proxy-w1", "worker-1", ds, corev1.PodPending, false)
 
 	cl := buildClient(node, ds, pod)
 	r := buildReconciler(cl, cfg)
@@ -268,7 +267,7 @@ func TestIntegration_UntaintedNode_Skipped(t *testing.T) {
 	}
 
 	node := makeNode("worker-1", "") // No taint.
-	ds := makeDaemonSet("kube-system", "kube-proxy")
+	ds := makeDaemonSet("kube-proxy")
 
 	cl := buildClient(node, ds)
 	r := buildReconciler(cl, cfg)
@@ -292,10 +291,10 @@ func TestIntegration_MultipleNodes(t *testing.T) {
 
 	node1 := makeNode("worker-1", cfg.TaintKey)
 	node2 := makeNode("worker-2", cfg.TaintKey)
-	ds := makeDaemonSet("kube-system", "kube-proxy")
+	ds := makeDaemonSet("kube-proxy")
 
 	// worker-1 has a Ready pod, worker-2 does not.
-	pod1 := makePod("kube-system", "kube-proxy-w1", "worker-1", ds, corev1.PodRunning, true)
+	pod1 := makePod("kube-proxy-w1", "worker-1", ds, corev1.PodRunning, true)
 
 	cl := buildClient(node1, node2, ds, pod1)
 	r := buildReconciler(cl, cfg)
@@ -329,11 +328,11 @@ func TestIntegration_ExcludedDaemonSet(t *testing.T) {
 	}
 
 	node := makeNode("worker-1", cfg.TaintKey)
-	dsGood := makeDaemonSet("kube-system", "kube-proxy")
-	dsSlow := makeDaemonSet("kube-system", "slow-ds")
+	dsGood := makeDaemonSet("kube-proxy")
+	dsSlow := makeDaemonSet("slow-ds")
 
 	// kube-proxy is Ready. slow-ds has no pod — but it's excluded.
-	pod := makePod("kube-system", "kube-proxy-w1", "worker-1", dsGood, corev1.PodRunning, true)
+	pod := makePod("kube-proxy-w1", "worker-1", dsGood, corev1.PodRunning, true)
 
 	cl := buildClient(node, dsGood, dsSlow, pod)
 	r := buildReconciler(cl, cfg)
@@ -360,14 +359,14 @@ func TestIntegration_NodeSelectorFiltering(t *testing.T) {
 	node.Labels = map[string]string{"kubernetes.io/os": "linux"}
 
 	// kube-proxy matches any node (no nodeSelector).
-	dsProxy := makeDaemonSet("kube-system", "kube-proxy")
+	dsProxy := makeDaemonSet("kube-proxy")
 
 	// gpu-driver requires accelerator=nvidia — won't match worker-1.
-	dsGPU := makeDaemonSet("kube-system", "gpu-driver")
+	dsGPU := makeDaemonSet("gpu-driver")
 	dsGPU.Spec.Template.Spec.NodeSelector = map[string]string{"accelerator": "nvidia"}
 
 	// Only kube-proxy should be expected. Its pod is Ready.
-	pod := makePod("kube-system", "kube-proxy-w1", "worker-1", dsProxy, corev1.PodRunning, true)
+	pod := makePod("kube-proxy-w1", "worker-1", dsProxy, corev1.PodRunning, true)
 
 	cl := buildClient(node, dsProxy, dsGPU, pod)
 	r := buildReconciler(cl, cfg)
@@ -397,16 +396,16 @@ func TestIntegration_StartupTaintStripping(t *testing.T) {
 	})
 
 	// gpu-monitor tolerates the dedicated taint — should be expected.
-	dsGPU := makeDaemonSet("kube-system", "gpu-monitor")
+	dsGPU := makeDaemonSet("gpu-monitor")
 	dsGPU.Spec.Template.Spec.Tolerations = []corev1.Toleration{
 		{Key: "dedicated", Operator: corev1.TolerationOpEqual, Value: "gpu", Effect: corev1.TaintEffectNoSchedule},
 	}
 
 	// plain-agent has no tolerations — can't tolerate dedicated=gpu.
-	dsPlain := makeDaemonSet("kube-system", "plain-agent")
+	dsPlain := makeDaemonSet("plain-agent")
 
 	// gpu-monitor pod is Ready.
-	pod := makePod("kube-system", "gpu-monitor-w1", "worker-1", dsGPU, corev1.PodRunning, true)
+	pod := makePod("gpu-monitor-w1", "worker-1", dsGPU, corev1.PodRunning, true)
 
 	cl := buildClient(node, dsGPU, dsPlain, pod)
 	r := buildReconciler(cl, cfg)
