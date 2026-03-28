@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"os"
+	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -70,6 +71,7 @@ func main() {
 		"taint-effect", cfg.TaintEffect,
 		"timeout-seconds", cfg.TimeoutSeconds,
 		"dry-run", cfg.DryRun,
+		"max-concurrent-reconciles", cfg.MaxConcurrentReconciles,
 	)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
@@ -77,9 +79,13 @@ func main() {
 		Metrics: metricsserver.Options{
 			BindAddress: metricsAddr,
 		},
-		HealthProbeBindAddress: probeAddr,
-		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "vigil-controller.nextdoor.com",
+		HealthProbeBindAddress:        probeAddr,
+		LeaderElection:                enableLeaderElection,
+		LeaderElectionID:              "vigil-controller.nextdoor.com",
+		LeaseDuration:                 ptr(15 * time.Second),
+		RenewDeadline:                 ptr(10 * time.Second),
+		RetryPeriod:                   ptr(2 * time.Second),
+		LeaderElectionReleaseOnCancel: true,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -135,9 +141,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	setupLog.Info("starting manager")
+	setupLog.Info("starting manager",
+		"max-concurrent-reconciles", cfg.MaxConcurrentReconciles,
+		"leader-election", enableLeaderElection,
+	)
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
 }
+
+func ptr[T any](v T) *T { return &v }

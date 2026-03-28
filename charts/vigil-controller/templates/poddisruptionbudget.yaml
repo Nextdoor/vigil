@@ -1,0 +1,13 @@
+{{- if .Values.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "vigil-controller.fullname" . }}-controller-manager
+  labels:
+    {{- include "vigil-controller.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "vigil-controller.selectorLabels" . | nindent 6 }}
+{{- end }}
