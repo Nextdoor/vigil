@@ -19,6 +19,7 @@ import (
 	"github.com/nextdoor/vigil/internal/controller"
 	"github.com/nextdoor/vigil/internal/discovery"
 	"github.com/nextdoor/vigil/internal/readiness"
+	"github.com/nextdoor/vigil/internal/taintremoval"
 	"github.com/nextdoor/vigil/pkg/config"
 )
 
@@ -305,12 +306,13 @@ func buildClient(objs ...client.Object) client.WithWatch {
 
 func buildReconciler(cl client.Client, cfg *config.Config) *controller.NodeReadinessReconciler {
 	return &controller.NodeReadinessReconciler{
-		Client:    cl,
-		Scheme:    testScheme,
-		Log:       logr.Discard(),
-		Config:    cfg,
-		Discovery: discovery.New(cl, logr.Discard(), cfg),
-		Readiness: readiness.New(cl, logr.Discard()),
+		Client:       cl,
+		Scheme:       testScheme,
+		Log:          logr.Discard(),
+		Config:       cfg,
+		Discovery:    discovery.New(cl, logr.Discard(), cfg),
+		Readiness:    readiness.New(cl, logr.Discard()),
+		TaintRemover: taintremoval.New(cl, cl, logr.Discard()),
 	}
 }
 
@@ -779,9 +781,19 @@ func TestLifecycle_PodRegresses(t *testing.T) {
 	)...)
 	r := buildReconciler(cl, cfg)
 
+	// First reconcile: all Ready → taint removed.
 	result, err := reconcile(r, "worker-2")
 	require.NoError(t, err)
-	assert.Equal(t, ctrl.Result{}, result, "initially all Ready")
+	assert.Equal(t, ctrl.Result{}, result, "initially all Ready — taint removed")
+
+	// Verify taint was actually removed.
+	var node corev1.Node
+	require.NoError(t, cl.Get(context.Background(),
+		types.NamespacedName{Name: "worker-2"}, &node))
+	for _, taint := range node.Spec.Taints {
+		assert.NotEqual(t, cfg.TaintKey, taint.Key,
+			"startup taint should have been removed")
+	}
 
 	// aws-cni crashes — Ready condition goes False.
 	var p corev1.Pod
@@ -792,10 +804,11 @@ func TestLifecycle_PodRegresses(t *testing.T) {
 	}
 	require.NoError(t, cl.Status().Update(context.Background(), &p))
 
+	// Second reconcile: taint already gone, controller skips this node.
 	result, err = reconcile(r, "worker-2")
 	require.NoError(t, err)
-	assert.Equal(t, 5*time.Second, result.RequeueAfter,
-		"aws-cni regressed — should requeue")
+	assert.Equal(t, ctrl.Result{}, result,
+		"taint already removed — controller is done with this node")
 }
 
 // ===================================================================
@@ -822,9 +835,193 @@ func TestNoDaemonSets(t *testing.T) {
 	cl := buildClient(node)
 	r := buildReconciler(cl, cfg)
 
-	// 0 expected → 0 ready → all ready (vacuously true).
+	// 0 expected → 0 ready → all ready (vacuously true) → taint removed.
 	result, err := reconcile(r, "lonely-node")
 	require.NoError(t, err)
 	assert.Equal(t, ctrl.Result{}, result,
-		"no DaemonSets → vacuously ready")
+		"no DaemonSets → vacuously ready, taint removed")
+
+	// Verify taint was removed.
+	var updated corev1.Node
+	require.NoError(t, cl.Get(context.Background(),
+		types.NamespacedName{Name: "lonely-node"}, &updated))
+	assert.Empty(t, updated.Spec.Taints, "taint should be removed")
+}
+
+// ===================================================================
+// Test: Taint removal verifies taint is gone from node
+// ===================================================================
+
+func TestTaintRemoval_VerifyTaintGone(t *testing.T) {
+	cfg := testConfig()
+	proxy := dsKubeProxy()
+	exporter := dsNodeExporter()
+	cni := dsAWSCNI()
+
+	cl := buildClient(clusterObjects(
+		readyPod(proxy, "worker-1"),
+		readyPod(exporter, "worker-1"),
+		readyPod(cni, "worker-1"),
+	)...)
+	r := buildReconciler(cl, cfg)
+
+	result, err := reconcile(r, "worker-1")
+	require.NoError(t, err)
+	assert.Equal(t, ctrl.Result{}, result)
+
+	// Verify taint was removed from the node.
+	var node corev1.Node
+	require.NoError(t, cl.Get(context.Background(),
+		types.NamespacedName{Name: "worker-1"}, &node))
+	for _, taint := range node.Spec.Taints {
+		assert.NotEqual(t, cfg.TaintKey, taint.Key,
+			"startup taint should have been removed from worker-1")
+	}
+}
+
+// ===================================================================
+// Test: Timeout removes taint even when pods are not ready
+// ===================================================================
+
+func TestTimeout_RemovesTaintWhenNotReady(t *testing.T) {
+	cfg := testConfig()
+	cfg.TimeoutSeconds = 1 // 1 second timeout
+
+	proxy := dsKubeProxy()
+
+	// Create a node with a creation timestamp in the past (older than timeout).
+	node := nodeWorker("old-worker")
+	node.CreationTimestamp = metav1.NewTime(time.Now().Add(-2 * time.Minute))
+
+	cl := buildClient(append(clusterObjects(
+		// Only kube-proxy has a pod, but it's Pending.
+		pendingPod(proxy, "old-worker"),
+	), node)...)
+	r := buildReconciler(cl, cfg)
+
+	result, err := reconcile(r, "old-worker")
+	require.NoError(t, err)
+	assert.Equal(t, ctrl.Result{}, result,
+		"timeout should remove taint even with not-ready pods")
+
+	// Verify taint was removed.
+	var updated corev1.Node
+	require.NoError(t, cl.Get(context.Background(),
+		types.NamespacedName{Name: "old-worker"}, &updated))
+	for _, taint := range updated.Spec.Taints {
+		assert.NotEqual(t, cfg.TaintKey, taint.Key,
+			"startup taint should be removed after timeout")
+	}
+}
+
+func TestTimeout_DoesNotFireForYoungNode(t *testing.T) {
+	cfg := testConfig()
+	cfg.TimeoutSeconds = 120
+
+	// Node was just created — should NOT timeout.
+	cl := buildClient(clusterObjects()...)
+	r := buildReconciler(cl, cfg)
+
+	result, err := reconcile(r, "worker-1")
+	require.NoError(t, err)
+	assert.Equal(t, 5*time.Second, result.RequeueAfter,
+		"young node should requeue, not timeout")
+}
+
+// ===================================================================
+// Test: Dry-run mode logs but does not remove taint
+// ===================================================================
+
+func TestDryRun_DoesNotRemoveTaint(t *testing.T) {
+	cfg := testConfig()
+	cfg.DryRun = true
+
+	proxy := dsKubeProxy()
+	exporter := dsNodeExporter()
+	cni := dsAWSCNI()
+
+	cl := buildClient(clusterObjects(
+		readyPod(proxy, "worker-1"),
+		readyPod(exporter, "worker-1"),
+		readyPod(cni, "worker-1"),
+	)...)
+	r := buildReconciler(cl, cfg)
+
+	result, err := reconcile(r, "worker-1")
+	require.NoError(t, err)
+	assert.Equal(t, 5*time.Second, result.RequeueAfter,
+		"dry-run should requeue (taint not actually removed)")
+
+	// Verify taint is still present.
+	var node corev1.Node
+	require.NoError(t, cl.Get(context.Background(),
+		types.NamespacedName{Name: "worker-1"}, &node))
+	hasTaint := false
+	for _, taint := range node.Spec.Taints {
+		if taint.Key == cfg.TaintKey {
+			hasTaint = true
+		}
+	}
+	assert.True(t, hasTaint, "dry-run should NOT remove the taint")
+}
+
+func TestDryRun_TimeoutAlsoDoesNotRemoveTaint(t *testing.T) {
+	cfg := testConfig()
+	cfg.DryRun = true
+	cfg.TimeoutSeconds = 1
+
+	node := nodeWorker("old-dry-run")
+	node.CreationTimestamp = metav1.NewTime(time.Now().Add(-2 * time.Minute))
+
+	cl := buildClient(append(clusterObjects(), node)...)
+	r := buildReconciler(cl, cfg)
+
+	result, err := reconcile(r, "old-dry-run")
+	require.NoError(t, err)
+	assert.Equal(t, 5*time.Second, result.RequeueAfter,
+		"dry-run timeout should requeue")
+
+	// Verify taint is still present.
+	var updated corev1.Node
+	require.NoError(t, cl.Get(context.Background(),
+		types.NamespacedName{Name: "old-dry-run"}, &updated))
+	hasTaintKey := false
+	for _, taint := range updated.Spec.Taints {
+		if taint.Key == cfg.TaintKey {
+			hasTaintKey = true
+		}
+	}
+	assert.True(t, hasTaintKey, "dry-run timeout should NOT remove the taint")
+}
+
+// ===================================================================
+// Test: Taint removal preserves other taints
+// ===================================================================
+
+func TestTaintRemoval_PreservesOtherTaints(t *testing.T) {
+	cfg := testConfig()
+	proxy := dsKubeProxy()
+	exporter := dsNodeExporter()
+	gpu := dsGPUDriver()
+
+	// gpu-1 has both our startup taint AND dedicated=gpu taint.
+	cl := buildClient(clusterObjects(
+		readyPod(proxy, "gpu-1"),
+		readyPod(exporter, "gpu-1"),
+		readyPod(gpu, "gpu-1"),
+	)...)
+	r := buildReconciler(cl, cfg)
+
+	result, err := reconcile(r, "gpu-1")
+	require.NoError(t, err)
+	assert.Equal(t, ctrl.Result{}, result)
+
+	var node corev1.Node
+	require.NoError(t, cl.Get(context.Background(),
+		types.NamespacedName{Name: "gpu-1"}, &node))
+
+	// dedicated=gpu taint should still be present.
+	assert.Len(t, node.Spec.Taints, 1, "should have exactly 1 taint remaining")
+	assert.Equal(t, "dedicated", node.Spec.Taints[0].Key,
+		"dedicated=gpu taint should be preserved")
 }

@@ -23,6 +23,9 @@ type Config struct {
 	// TimeoutSeconds is the maximum time to wait before removing the taint anyway.
 	TimeoutSeconds int `mapstructure:"timeoutSeconds"`
 
+	// DryRun when true logs taint removal decisions without actually removing taints.
+	DryRun bool `mapstructure:"dryRun"`
+
 	// ExcludeDaemonSets configures which DaemonSets to exclude from readiness checks.
 	ExcludeDaemonSets ExcludeDaemonSets `mapstructure:"excludeDaemonSets"`
 }

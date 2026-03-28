@@ -19,6 +19,7 @@ import (
 	"github.com/nextdoor/vigil/internal/discovery"
 	"github.com/nextdoor/vigil/internal/inventory"
 	"github.com/nextdoor/vigil/internal/readiness"
+	"github.com/nextdoor/vigil/internal/taintremoval"
 	"github.com/nextdoor/vigil/pkg/config"
 )
 
@@ -68,6 +69,7 @@ func main() {
 		"taint-key", cfg.TaintKey,
 		"taint-effect", cfg.TaintEffect,
 		"timeout-seconds", cfg.TimeoutSeconds,
+		"dry-run", cfg.DryRun,
 	)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
@@ -95,13 +97,21 @@ func main() {
 		ctrl.Log.WithName("readiness"),
 	)
 
+	taintRemover := taintremoval.New(
+		mgr.GetAPIReader(),
+		mgr.GetClient(),
+		ctrl.Log.WithName("taint-removal"),
+	)
+
 	if err = (&controller.NodeReadinessReconciler{
-		Client:    mgr.GetClient(),
-		Scheme:    mgr.GetScheme(),
-		Log:       ctrl.Log.WithName("node-readiness"),
-		Config:    cfg,
-		Discovery: dsDiscovery,
-		Readiness: podReadiness,
+		Client:       mgr.GetClient(),
+		Scheme:       mgr.GetScheme(),
+		Log:          ctrl.Log.WithName("node-readiness"),
+		Config:       cfg,
+		Discovery:    dsDiscovery,
+		Readiness:    podReadiness,
+		TaintRemover: taintRemover,
+		Recorder:     mgr.GetEventRecorderFor("vigil-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "NodeReadiness")
 		os.Exit(1)
