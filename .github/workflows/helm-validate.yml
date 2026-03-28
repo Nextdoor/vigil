@@ -35,6 +35,13 @@ jobs:
         run: |
           helm dependency update charts/vigil-controller
 
+      - name: Install helm-docs
+        run: |
+          cd /tmp
+          curl -LO https://github.com/norwoodj/helm-docs/releases/download/v1.14.2/helm-docs_1.14.2_Linux_x86_64.tar.gz
+          tar -xzf helm-docs_1.14.2_Linux_x86_64.tar.gz
+          sudo mv helm-docs /usr/local/bin/
+
       - name: Check Helm documentation
         run: |
           make helm-docs-check
@@ -58,7 +65,7 @@ jobs:
         run: |
           kubectl get pods -n vigil-system
           kubectl get deployment -n vigil-system
-          kubectl rollout status deployment/vigil-test-controller-manager -n vigil-system --timeout=5m
+          kubectl rollout status deployment/vigil-test-vigil-controller-controller-manager -n vigil-system --timeout=5m
 
       - name: Check service endpoints
         run: |
