@@ -17,6 +17,7 @@ import (
 
 	"github.com/nextdoor/vigil/internal/controller"
 	"github.com/nextdoor/vigil/internal/discovery"
+	"github.com/nextdoor/vigil/internal/inventory"
 	"github.com/nextdoor/vigil/pkg/config"
 )
 
@@ -96,6 +97,15 @@ func main() {
 		Discovery: dsDiscovery,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "NodeReadiness")
+		os.Exit(1)
+	}
+
+	dsInventory := inventory.New(
+		mgr.GetClient(),
+		ctrl.Log.WithName("daemonset-inventory"),
+	)
+	if err = dsInventory.SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "DaemonSetInventory")
 		os.Exit(1)
 	}
 
