@@ -339,11 +339,13 @@ func allNodes() []*corev1.Node {
 
 // clusterObjects returns nodes + DaemonSets as a client.Object slice.
 func clusterObjects(extraPods ...*corev1.Pod) []client.Object {
-	var objs []client.Object
-	for _, n := range allNodes() {
+	nodes := allNodes()
+	dss := allDaemonSets()
+	objs := make([]client.Object, 0, len(nodes)+len(dss)+len(extraPods))
+	for _, n := range nodes {
 		objs = append(objs, n)
 	}
-	for _, ds := range allDaemonSets() {
+	for _, ds := range dss {
 		objs = append(objs, ds)
 	}
 	for _, p := range extraPods {

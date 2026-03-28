@@ -23,16 +23,22 @@ var _ = Describe("Node Readiness Controller", Ordered, func() {
 
 	Context("controller installation", func() {
 		It("should have a running deployment", func() {
+			By("Fetching deployment from Kubernetes API")
 			deploy, err := clientset.AppsV1().Deployments(helmNamespace).Get(ctx,
 				helmReleaseName+"-vigil-controller-controller-manager", metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred())
+
+			By("Checking Available condition")
 			Expect(deploymentAvailable(deploy)).To(BeTrue(),
 				"deployment should have Available condition")
+
+			By("Verifying all replicas are ready")
 			Expect(deploy.Status.ReadyReplicas).To(Equal(*deploy.Spec.Replicas),
 				"all replicas should be ready")
 		})
 
 		It("should have healthy pods with no restarts", func() {
+			By("Listing controller pods")
 			pods, err := clientset.CoreV1().Pods(helmNamespace).List(ctx, metav1.ListOptions{
 				LabelSelector: "app.kubernetes.io/name=vigil-controller",
 			})
@@ -40,6 +46,7 @@ var _ = Describe("Node Readiness Controller", Ordered, func() {
 			Expect(pods.Items).NotTo(BeEmpty())
 
 			for _, pod := range pods.Items {
+				By("Checking pod " + pod.Name + " is Running with no restarts")
 				Expect(pod.Status.Phase).To(Equal(corev1.PodRunning),
 					"pod %s should be Running", pod.Name)
 				for _, cs := range pod.Status.ContainerStatuses {
@@ -52,6 +59,7 @@ var _ = Describe("Node Readiness Controller", Ordered, func() {
 		})
 
 		It("should pass health checks", func() {
+			By("Listing vigil-controller services")
 			svcs, err := clientset.CoreV1().Services(helmNamespace).List(ctx, metav1.ListOptions{
 				LabelSelector: "app.kubernetes.io/name=vigil-controller",
 			})
@@ -59,6 +67,7 @@ var _ = Describe("Node Readiness Controller", Ordered, func() {
 			Expect(svcs.Items).NotTo(BeEmpty(), "should find at least one service")
 
 			svcName := svcs.Items[0].Name
+			By("Verifying endpoints for service " + svcName)
 			endpoints, err := clientset.CoreV1().Endpoints(helmNamespace).Get(ctx, svcName, metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(endpoints.Subsets).NotTo(BeEmpty(),
@@ -66,9 +75,14 @@ var _ = Describe("Node Readiness Controller", Ordered, func() {
 		})
 
 		It("should have started the manager and node-readiness controller", func() {
+			By("Reading controller pod logs")
 			logs := getDeploymentPodLogs(ctx)
+
+			By("Checking for manager startup log")
 			Expect(logs).To(ContainSubstring("starting manager"),
 				"logs should show manager started")
+
+			By("Checking for controller workers startup log")
 			Expect(logs).To(ContainSubstring("Starting workers"),
 				"logs should show controller workers started")
 		})
@@ -76,6 +90,7 @@ var _ = Describe("Node Readiness Controller", Ordered, func() {
 
 	Context("daemonset inventory", func() {
 		It("should log discovered DaemonSets on startup", func() {
+			By("Waiting for inventory controller to log DaemonSet additions")
 			// KIND clusters have at least kube-proxy and kindnet DaemonSets.
 			Eventually(func() string {
 				return getDeploymentPodLogs(ctx)
@@ -87,7 +102,9 @@ var _ = Describe("Node Readiness Controller", Ordered, func() {
 
 	Context("node watching", func() {
 		It("should remain stable with no restarts over 10 seconds", func() {
+			By("Recording initial restart count")
 			restarts := getControllerRestartCount(ctx)
+			By("Verifying no restarts over 10 second window")
 			waitAndCheckNoRestarts(ctx, restarts, 10*time.Second)
 		})
 	})
@@ -122,6 +139,7 @@ var _ = Describe("Node Readiness Controller", Ordered, func() {
 		})
 
 		It("should report all DaemonSets as Ready", func() {
+			By("Waiting for controller to report all DaemonSet pods as Ready")
 			// KIND DaemonSets (kube-proxy, kindnet) are already running and Ready.
 			Eventually(func() string {
 				return getDeploymentPodLogs(ctx)
@@ -131,16 +149,22 @@ var _ = Describe("Node Readiness Controller", Ordered, func() {
 		})
 
 		It("should emit expected and ready DaemonSet metrics", func() {
+			By("Fetching /metrics via port-forward")
 			metricsBody := getMetrics(ctx)
 
+			By("Checking for vigil_expected_daemonsets metric")
 			Expect(metricsBody).To(ContainSubstring("vigil_expected_daemonsets"),
 				"metrics should include vigil_expected_daemonsets gauge")
+
+			By("Checking for vigil_ready_daemonsets metric")
 			Expect(metricsBody).To(ContainSubstring("vigil_ready_daemonsets"),
 				"metrics should include vigil_ready_daemonsets gauge")
 		})
 
 		It("should not crash after evaluating readiness", func() {
+			By("Recording restart count after readiness evaluation")
 			restarts := getControllerRestartCount(ctx)
+			By("Verifying stability over 10 seconds")
 			waitAndCheckNoRestarts(ctx, restarts, 10*time.Second)
 		})
 
@@ -153,9 +177,14 @@ var _ = Describe("Node Readiness Controller", Ordered, func() {
 
 	Context("metrics endpoint", func() {
 		It("should expose Prometheus metrics", func() {
+			By("Fetching /metrics endpoint via port-forward")
 			metricsBody := getMetrics(ctx)
+
+			By("Checking for controller-runtime reconcile metrics")
 			Expect(metricsBody).To(ContainSubstring("controller_runtime_reconcile_total"),
 				"metrics should include controller-runtime reconcile metrics")
+
+			By("Checking for vigil discovery duration histogram")
 			Expect(metricsBody).To(ContainSubstring("vigil_discovery_duration_seconds"),
 				"metrics should include vigil discovery duration histogram")
 		})
