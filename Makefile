@@ -66,6 +66,11 @@ test: ## Run unit tests with coverage
 test-e2e: ## Run E2E tests (requires Kind cluster)
 	$(GO) test -tags=e2e -v -timeout=20m -count=1 ./test/e2e/...
 
+.PHONY: test-stress
+test-stress: ## Run stress tests (30min, 10k nodes, envtest)
+	KUBEBUILDER_ASSETS="$(shell go run sigs.k8s.io/controller-runtime/tools/setup-envtest@latest use -p path 2>/dev/null || echo '')" \
+		$(GO) test -tags=stress -v -timeout=35m -count=1 ./test/stress/...
+
 .PHONY: cover
 cover: ## Display coverage report
 	$(GO) tool cover -func cover.out
