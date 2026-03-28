@@ -55,32 +55,32 @@
     },
     {
       "description": "Group Kubernetes packages",
-      "matchPackagePatterns": ["^k8s.io/", "^sigs.k8s.io/"],
+      "matchPackageNames": ["/^k8s\\.io\\//", "/^sigs\\.k8s\\.io\\//"],
       "groupName": "kubernetes-packages",
       "branchPrefix": "k8s-"
     },
     {
       "description": "Group Prometheus packages",
-      "matchPackagePatterns": ["^github.com/prometheus/"],
+      "matchPackageNames": ["/^github\\.com\\/prometheus\\//"],
       "groupName": "prometheus-packages",
       "branchPrefix": "prometheus-"
     },
     {
       "description": "Group controller-runtime",
-      "matchPackagePatterns": ["^sigs.k8s.io/controller-runtime"],
+      "matchPackageNames": ["/^sigs\\.k8s\\.io\\/controller-runtime/"],
       "groupName": "controller-runtime",
       "branchPrefix": "controller-runtime-"
     },
     {
       "description": "Group Ginkgo/Gomega testing",
-      "matchPackagePatterns": ["^github.com/onsi/"],
+      "matchPackageNames": ["/^github\\.com\\/onsi\\//"],
       "groupName": "testing-frameworks",
       "branchPrefix": "testing-"
     },
     {
       "description": "Pin Docker base image digests",
       "matchManagers": ["dockerfile"],
-      "matchPackagePatterns": ["golang", "alpine"],
+      "matchPackageNames": ["/golang/", "/alpine/"],
       "pinDigests": true
     },
     {

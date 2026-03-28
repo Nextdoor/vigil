@@ -1,0 +1,267 @@
+---
+name: stress-test
+description: >
+  Run the vigil-controller stress test, compare results against the checked-in
+  baseline, and update the website benchmarks page. Use when the user says
+  "stress test", "run benchmarks", "performance test", or invokes /stress-test.
+user-invocable: true
+disable-model-invocation: false
+allowed-tools: Bash, Read, Write, Edit, Glob, Grep
+---
+
+# Stress Test Skill
+
+Run the vigil-controller stress test suite, compare results against the
+checked-in baseline, and optionally update the website benchmarks page.
+
+## Input
+
+Arguments:
+- `run` — run the stress test (required to actually execute)
+- `--nodes=N` — number of nodes (default: 100 for a quick smoke run)
+- `--rate=N` — node creation rate per second (default: 50)
+- `--full` — run with 10,000 nodes at 10/sec (the full 30-minute suite)
+- `--update-baseline` — update the baseline after a successful run
+- `--skip-website` — do not update the benchmarks page
+
+**If no arguments are provided**, print this usage summary and exit without
+running anything:
+
+```
+Vigil Stress Test — usage:
+
+  /stress-test run                  Run with 100 nodes (quick, ~1 min)
+  /stress-test run --full           Run with 10,000 nodes (~30 min)
+  /stress-test run --nodes=500      Run with custom node count
+  /stress-test run --update-baseline  Update baseline after successful run
+  /stress-test run --skip-website   Skip updating the benchmarks page
+
+Environment overrides (via STRESS_* env vars):
+  STRESS_NODE_COUNT, STRESS_NODE_RATE, STRESS_TIMEOUT_MINUTES,
+  STRESS_CONTROLLER_TIMEOUT_SEC, STRESS_MAX_CONCURRENT_RECONCILES,
+  STRESS_API_CONCURRENCY, STRESS_LOG_LEVEL (0=warn, 1=info, 2=debug)
+
+Files:
+  test/stress/baseline.json          Checked-in baseline for regression detection
+  test/stress/results/latest.json    Output from most recent run (gitignored)
+  website/.../reference/benchmarks.md  Auto-generated benchmarks page
+```
+
+Do NOT proceed to run the test unless the user explicitly includes `run`.
+
+## Process
+
+### 1. Run the stress test
+
+Determine the test parameters from the arguments:
+
+| Argument | STRESS_NODE_COUNT | STRESS_NODE_RATE | STRESS_TIMEOUT_MINUTES |
+|----------|-------------------|------------------|------------------------|
+| (default) | 100 | 50 | 5 |
+| `--full` | 10000 | 10 | 30 |
+| `--nodes=N` | N | (use --rate or 50) | max(5, N/100) |
+
+Run the test. The working directory for `make` must be the vigil-controller
+repo root (where the Makefile lives):
+
+```bash
+cd <repo-root>
+STRESS_NODE_COUNT=<nodes> \
+STRESS_NODE_RATE=<rate> \
+STRESS_TIMEOUT_MINUTES=<timeout> \
+STRESS_CONTROLLER_TIMEOUT_SEC=30 \
+make test-stress
+```
+
+The test writes structured results to `test/stress/results/latest.json`.
+
+If the test fails (non-zero exit), report the failure. Do NOT proceed to
+comparison or website update.
+
+### 2. Read and parse results
+
+Read `test/stress/results/latest.json`. Present a summary:
+
+```
+## Stress Test Results
+
+| Metric | Value |
+|--------|-------|
+| Nodes | <total> |
+| Success | <count> (<pct>%) |
+| Timeout | <count> (<pct>%) |
+| Pending | <count> |
+| Pod Startup p50 | <ms>ms |
+| Pod Startup p99 | <ms>ms |
+| Vigil Reaction p50 | <ms>ms |
+| Vigil Reaction p99 | <ms>ms |
+| End-to-End p50 | <ms>ms |
+| End-to-End p99 | <ms>ms |
+| Peak Heap | <mb> MB |
+| Duration | <sec>s |
+| Git SHA | <sha> |
+```
+
+### 3. Compare against baseline
+
+Read `test/stress/baseline.json`. If it does not exist, skip comparison and
+offer to create it from this run's results.
+
+**Only compare runs with the same `node_count`.** If node counts differ, show
+both results side-by-side but skip percentage-based regression checks.
+
+**Regression thresholds** — flag if ANY of these are breached:
+
+| Metric | Threshold |
+|--------|-----------|
+| Vigil reaction p50 | >20% increase |
+| Vigil reaction p99 | >20% increase |
+| End-to-end p50 | >20% increase |
+| End-to-end p99 | >20% increase |
+| Success rate | any decrease (success/total) |
+| Peak heap memory | >50% increase |
+| Total duration | >30% increase |
+
+Present comparison as a table:
+
+```
+## Baseline Comparison
+
+| Metric | Baseline | Current | Delta | Status |
+|--------|----------|---------|-------|--------|
+| p50 Latency | Xms | Yms | +Z% | OK / REGRESSION |
+```
+
+If regressions detected:
+> **Regressions detected.** The following metrics exceeded thresholds: <list>.
+> Investigate before updating the baseline.
+
+If no regressions:
+> **All metrics within acceptable range.**
+
+### 4. Update the website benchmarks page
+
+**Skip if `--skip-website` was passed or if regressions were detected.**
+
+Read `test/stress/results/latest.json` and generate the benchmarks page at
+`website/content/en/docs/reference/benchmarks.md`.
+
+The page structure:
+
+```markdown
+---
+title: "Benchmarks"
+description: "Performance benchmarks from stress testing"
+weight: 40
+---
+
+<!-- This page is auto-generated by the /stress-test skill. Do not edit manually. -->
+
+## Latest Benchmark Results
+
+**Run date:** <timestamp>
+**Git SHA:** `<sha>`
+**Node count:** <count>
+
+### Latency
+
+The stress test measures three distinct latency phases:
+
+- **Pod startup** — time from node creation until all expected DaemonSet pods
+  become Ready. This is dominated by simulated pod startup delays and reflects
+  real-world DaemonSet boot time. Excludes never-ready nodes.
+- **Vigil reaction** — time from all pods becoming Ready until the taint is
+  removed. This isolates Vigil's controller overhead: reconcile loop detection,
+  readiness verification, and the taint removal API call.
+- **End-to-end** — total time from node creation to taint removal. For
+  never-ready nodes, this equals the controller timeout.
+
+#### Pod Startup Latency
+
+| Percentile | Latency |
+|------------|---------|
+| p50 | <latency.pod_startup.p50_ms>ms |
+| p95 | <latency.pod_startup.p95_ms>ms |
+| p99 | <latency.pod_startup.p99_ms>ms |
+
+#### Vigil Reaction Time
+
+| Percentile | Latency |
+|------------|---------|
+| p50 | <latency.vigil_reaction.p50_ms>ms |
+| p95 | <latency.vigil_reaction.p95_ms>ms |
+| p99 | <latency.vigil_reaction.p99_ms>ms |
+
+#### End-to-End Latency
+
+| Percentile | Latency |
+|------------|---------|
+| p50 | <latency.end_to_end.p50_ms>ms |
+| p95 | <latency.end_to_end.p95_ms>ms |
+| p99 | <latency.end_to_end.p99_ms>ms |
+
+### Outcomes
+
+| Outcome | Count | Percentage |
+|---------|-------|------------|
+| Success | <n> | <pct>% |
+| Timeout | <n> | <pct>% |
+| Pending | <n> | <pct>% |
+
+### Resource Utilization
+
+| Metric | Value |
+|--------|-------|
+| Peak Heap | <mb> MB |
+| Final Heap | <mb> MB |
+| System Memory | <mb> MB |
+| GC Cycles | <n> |
+| GC CPU Fraction | <pct>% |
+
+### Memory Over Time
+
+| Elapsed (s) | Heap (MB) | System (MB) | Goroutines | GC Cycles |
+|-------------|-----------|-------------|------------|-----------|
+| <one row per resource_sample, values rounded to 1 decimal> |
+
+### Test Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| Node Count | <n> |
+| Node Rate | <n>/sec |
+| Controller Timeout | <n>s |
+| Max Concurrent Reconciles | <n> |
+| API Concurrency | <n> |
+| DaemonSet Count | <n> |
+| Total Duration | <sec>s |
+
+### Profile Distribution
+
+| Profile | Count | Percentage |
+|---------|-------|------------|
+| immediate | <n> | <pct>% |
+| delayed | <n> | <pct>% |
+| crash-recover | <n> | <pct>% |
+| never-ready | <n> | <pct>% |
+```
+
+Format numbers for readability: round floats to 1 decimal place, format
+large millisecond values with commas (e.g., 31,229ms).
+
+### 5. Offer baseline update
+
+If `--update-baseline` was passed, or if no regressions were detected, ask:
+
+> **Update baseline?** The current results look good. Would you like me to
+> copy `test/stress/results/latest.json` to `test/stress/baseline.json`?
+
+If the user confirms, copy the file.
+
+### 6. Summary
+
+End with a one-line summary:
+- Test: PASS/FAIL
+- Regressions: YES/NO
+- Website updated: YES/NO
+- Baseline updated: YES/NO
