@@ -166,6 +166,10 @@ func TestStress(t *testing.T) {
 	require.Equal(t, len(daemonSets), len(dsCheck.Items),
 		"cached client should see all DaemonSets")
 
+	// ---------- Start resource sampling ----------
+	sampler := NewResourceSampler()
+	go sampler.Run(ctx, 5*time.Second)
+
 	// ---------- Set up tracker and pod simulator ----------
 	tracker := NewNodeTracker(taintKey)
 	simulator := NewPodSimulator(cl, tracker, daemonSets, apiConcurrency)
@@ -251,6 +255,59 @@ func TestStress(t *testing.T) {
 	summary := tracker.PrintSummary()
 	t.Log(summary)
 
+	p50, p95, p99 := tracker.RemovalLatencyPercentiles()
+	t.Logf("Latency: p50=%v p95=%v p99=%v", p50, p95, p99)
+
+	// ---------- Write structured results ----------
+	var finalMem runtime.MemStats
+	runtime.ReadMemStats(&finalMem)
+	samples, peakHeap := sampler.Samples()
+
+	results := &StressTestResults{
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+		GitSHA:    gitSHA(),
+		TestConfig: TestConfig{
+			NodeCount:         nodeCount,
+			NodeRate:          nodeRate,
+			TimeoutMinutes:    timeoutMin,
+			ControllerTimeout: controllerTimeout,
+			MaxConcReconciles: maxReconciles,
+			APIConcurrency:    apiConcurrency,
+			DaemonSetCount:    len(daemonSets),
+		},
+		Latency: LatencyResults{
+			P50Ms: float64(p50.Milliseconds()),
+			P95Ms: float64(p95.Milliseconds()),
+			P99Ms: float64(p99.Milliseconds()),
+		},
+		Counts: CountResults{
+			Total:   nodeCount,
+			Success: tracker.SuccessCount(),
+			Timeout: tracker.TimeoutCount(),
+			Pending: tracker.PendingCount(),
+		},
+		ProfileDistro: tracker.ProfileDistribution(),
+		Memory: MemorySummary{
+			PeakHeapAllocMB:  float64(peakHeap) / 1024 / 1024,
+			FinalHeapAllocMB: float64(finalMem.Alloc) / 1024 / 1024,
+			FinalSysMB:       float64(finalMem.Sys) / 1024 / 1024,
+			TotalGCCycles:    finalMem.NumGC,
+			GCCPUFraction:    finalMem.GCCPUFraction,
+		},
+		ResourceSamples: samples,
+		Duration: DurationResults{
+			CreationSec: creationDuration.Seconds(),
+			TotalSec:    totalDuration.Seconds(),
+		},
+	}
+
+	resultsPath := "results/latest.json"
+	if err := WriteResults(results, resultsPath); err != nil {
+		t.Logf("Warning: failed to write results JSON: %v", err)
+	} else {
+		t.Logf("Results written to %s (from test/stress/)", resultsPath)
+	}
+
 	// ---------- Assertions ----------
 	t.Log("Running assertions...")
 
@@ -273,9 +330,6 @@ func TestStress(t *testing.T) {
 		"success count should be ~95%%")
 
 	// 5. Latency sanity checks.
-	p50, p95, p99 := tracker.RemovalLatencyPercentiles()
-	t.Logf("Latency: p50=%v p95=%v p99=%v", p50, p95, p99)
-
 	// p50 should be under 30s (most nodes are "immediate" with 1-5s delay).
 	assert.Less(t, p50, 30*time.Second, "p50 latency should be under 30s")
 
@@ -288,11 +342,9 @@ func TestStress(t *testing.T) {
 	assert.Zero(t, tracker.PendingCount(), "no nodes should be pending")
 
 	// 7. Memory sanity check.
-	var memStats runtime.MemStats
-	runtime.ReadMemStats(&memStats)
-	heapMB := memStats.Alloc / 1024 / 1024
+	heapMB := finalMem.Alloc / 1024 / 1024
 	t.Logf("Heap: %d MB", heapMB)
-	assert.Less(t, memStats.Alloc, uint64(4*1024*1024*1024), "heap should stay under 4GB")
+	assert.Less(t, finalMem.Alloc, uint64(4*1024*1024*1024), "heap should stay under 4GB")
 
 	t.Logf("Stress test completed in %v", totalDuration.Round(time.Second))
 }

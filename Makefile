@@ -71,6 +71,12 @@ test-stress: ## Run stress tests (30min, 10k nodes, envtest)
 	KUBEBUILDER_ASSETS="$(shell go run sigs.k8s.io/controller-runtime/tools/setup-envtest@latest use -p path 2>/dev/null || echo '')" \
 		$(GO) test -tags=stress -v -timeout=35m -count=1 ./test/stress/...
 
+.PHONY: test-stress-quick
+test-stress-quick: ## Run quick stress test (100 nodes, ~2min)
+	KUBEBUILDER_ASSETS="$(shell go run sigs.k8s.io/controller-runtime/tools/setup-envtest@latest use -p path 2>/dev/null || echo '')" \
+		STRESS_NODE_COUNT=100 STRESS_NODE_RATE=50 STRESS_TIMEOUT_MINUTES=5 STRESS_CONTROLLER_TIMEOUT_SEC=30 \
+		$(GO) test -tags=stress -v -timeout=10m -count=1 ./test/stress/...
+
 .PHONY: cover
 cover: ## Display coverage report
 	$(GO) tool cover -func cover.out

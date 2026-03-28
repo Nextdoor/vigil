@@ -132,6 +132,22 @@ func (nt *NodeTracker) ProfileCount(profile string) int {
 	return count
 }
 
+// ProfileDistribution returns a map of profile name to node count.
+func (nt *NodeTracker) ProfileDistribution() map[string]int {
+	nt.mu.RLock()
+	defer nt.mu.RUnlock()
+	return nt.profileDistributionLocked()
+}
+
+// profileDistributionLocked returns profile counts without acquiring the lock.
+func (nt *NodeTracker) profileDistributionLocked() map[string]int {
+	dist := make(map[string]int)
+	for _, rec := range nt.nodes {
+		dist[rec.Profile]++
+	}
+	return dist
+}
+
 // RemovalLatencyPercentiles returns p50, p95, p99 for taint removal latency.
 func (nt *NodeTracker) RemovalLatencyPercentiles() (p50, p95, p99 time.Duration) {
 	nt.mu.RLock()
@@ -247,10 +263,7 @@ func (nt *NodeTracker) PrintSummary() string {
 
 	p50, p95, p99 := nt.RemovalLatencyPercentiles()
 
-	profiles := map[string]int{}
-	for _, rec := range nt.nodes {
-		profiles[rec.Profile]++
-	}
+	profiles := nt.profileDistributionLocked()
 
 	var nodesByProfile string
 	for p, c := range profiles {
