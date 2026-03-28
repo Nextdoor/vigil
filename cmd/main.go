@@ -15,8 +15,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	"github.com/nextdoor/vigil-controller/internal/controller"
-	"github.com/nextdoor/vigil-controller/pkg/config"
+	"github.com/nextdoor/vigil/internal/controller"
+	"github.com/nextdoor/vigil/pkg/config"
 )
 
 var (

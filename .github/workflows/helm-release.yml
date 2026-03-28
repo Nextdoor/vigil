@@ -13,7 +13,7 @@ on:
         type: string
 
 env:
-  HELM_REPO_URL: https://oss.nextdoor.com/vigil-controller
+  HELM_REPO_URL: https://oss.nextdoor.com/vigil
 
 jobs:
   release:

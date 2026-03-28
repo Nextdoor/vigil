@@ -9,7 +9,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/nextdoor/vigil-controller/pkg/config"
+	"github.com/nextdoor/vigil/pkg/config"
 )
 
 // NodeReadinessReconciler watches nodes with a configured startup taint and

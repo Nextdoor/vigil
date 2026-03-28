@@ -10,9 +10,9 @@ keywords:
   - daemonset
   - karpenter
   - startup-taints
-home: https://github.com/Nextdoor/vigil-controller
+home: https://github.com/Nextdoor/vigil
 sources:
-  - https://github.com/Nextdoor/vigil-controller
+  - https://github.com/Nextdoor/vigil
 maintainers:
   - name: Vigil Controller Maintainers
-    url: https://github.com/Nextdoor/vigil-controller
+    url: https://github.com/Nextdoor/vigil

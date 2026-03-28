@@ -1,4 +1,4 @@
-baseURL: https://oss.nextdoor.com/vigil-controller/
+baseURL: https://oss.nextdoor.com/vigil/
 title: Vigil Controller
 languageCode: en-us
 defaultContentLanguage: en
@@ -44,12 +44,12 @@ params:
   links:
     user:
       - name: GitHub Discussions
-        url: https://github.com/nextdoor/vigil-controller/discussions
+        url: https://github.com/nextdoor/vigil/discussions
         icon: fab fa-github
         desc: Ask questions and share ideas
     developer:
       - name: GitHub
-        url: https://github.com/nextdoor/vigil-controller
+        url: https://github.com/nextdoor/vigil
         icon: fab fa-github
         desc: Vigil Controller on GitHub
   description: Node Readiness Controller for DaemonSet-Aware Startup Taints
@@ -64,5 +64,5 @@ menu:
       pre: <i class='fas fa-book'></i>
     - name: GitHub
       weight: 50
-      url: https://github.com/nextdoor/vigil-controller
+      url: https://github.com/nextdoor/vigil
       pre: <i class='fab fa-github'></i>

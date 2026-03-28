@@ -11,8 +11,8 @@
 ## Setup
 
 ```bash
-git clone https://github.com/Nextdoor/vigil-controller.git
-cd vigil-controller
+git clone https://github.com/Nextdoor/vigil.git
+cd vigil
 go mod download
 ```
 

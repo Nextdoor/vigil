@@ -13,7 +13,7 @@ on:
 jobs:
   validate:
     name: Validate Helm Chart
-    runs-on: runs-on=${{ github.run_id }}/runner=2cpu-linux-x64/cache=/var/cache/magic/extras=magic-cache
+    runs-on: runs-on=${{ github.run_id }}/runner=4cpu-linux-x64/cache=/var/cache/magic/extras=magic-cache
 
     steps:
       - name: Checkout code
@@ -35,6 +35,13 @@ jobs:
         run: |
           helm dependency update charts/vigil-controller
 
+      - name: Install helm-docs
+        run: |
+          cd /tmp
+          curl -LO https://github.com/norwoodj/helm-docs/releases/download/v1.14.2/helm-docs_1.14.2_Linux_x86_64.tar.gz
+          tar -xzf helm-docs_1.14.2_Linux_x86_64.tar.gz
+          sudo mv helm-docs /usr/local/bin/
+
       - name: Check Helm documentation
         run: |
           make helm-docs-check
@@ -45,12 +52,20 @@ jobs:
           version: v0.26.0
           kubectl_version: v1.31.0
 
+      - name: Build and load image into Kind
+        run: |
+          docker build -t vigil-controller:ci .
+          kind load docker-image vigil-controller:ci --name chart-testing
+
       - name: Install chart
         run: |
           helm install vigil-test charts/vigil-controller \
             --namespace vigil-system \
             --create-namespace \
             --values charts/vigil-controller/ci/ci-values.yaml \
+            --set image.repository=vigil-controller \
+            --set image.tag=ci \
+            --set image.pullPolicy=Never \
             --wait \
             --timeout 5m
 
@@ -58,7 +73,7 @@ jobs:
         run: |
           kubectl get pods -n vigil-system
           kubectl get deployment -n vigil-system
-          kubectl rollout status deployment/vigil-test-controller-manager -n vigil-system --timeout=5m
+          kubectl rollout status deployment/vigil-test-vigil-controller-controller-manager -n vigil-system --timeout=5m
 
       - name: Check service endpoints
         run: |

@@ -20,16 +20,16 @@ When Karpenter (or any node provisioner) launches a new node, workload scheduler
 ## Installation
 
 ```bash
-helm repo add vigil-controller https://oss.nextdoor.com/vigil-controller
+helm repo add vigil https://oss.nextdoor.com/vigil
 helm repo update
-helm install vigil vigil-controller/vigil-controller \
+helm install vigil vigil/vigil-controller \
   --namespace vigil-system \
   --create-namespace
 ```
 
 ## Documentation
 
-Full documentation is available at [oss.nextdoor.com/vigil-controller](https://oss.nextdoor.com/vigil-controller/).
+Full documentation is available at [oss.nextdoor.com/vigil](https://oss.nextdoor.com/vigil/).
 
 ## Development
 

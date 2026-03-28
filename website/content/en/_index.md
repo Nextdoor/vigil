@@ -7,7 +7,7 @@ title: Vigil Controller
 <a class="btn btn-lg btn-primary me-3 mb-4" href="{{< relref "docs/getting-started" >}}">
 Get Started <i class="fas fa-arrow-right ms-2"></i>
 </a>
-<a class="btn btn-lg btn-secondary me-3 mb-4" href="https://github.com/nextdoor/vigil-controller">
+<a class="btn btn-lg btn-secondary me-3 mb-4" href="https://github.com/nextdoor/vigil">
 View on GitHub <i class="fab fa-github ms-2"></i>
 </a>
 {{< /blocks/cover >}}
@@ -36,9 +36,9 @@ Runs as a standard controller-runtime controller with Helm installation. Uses Ka
 ## Quick Start
 
 ```bash
-helm repo add vigil-controller https://oss.nextdoor.com/vigil-controller
+helm repo add vigil https://oss.nextdoor.com/vigil
 helm repo update
-helm install vigil vigil-controller/vigil-controller \
+helm install vigil vigil/vigil-controller \
   --namespace vigil-system \
   --create-namespace
 ```
