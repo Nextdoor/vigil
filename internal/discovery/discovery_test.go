@@ -28,7 +28,7 @@ func defaultConfig() *config.Config {
 	return &config.Config{
 		TaintKey:    "node.example.com/initializing",
 		TaintEffect: "NoSchedule",
-		StartupTaintKeys: []string{
+		KnownStartupTaintKeys: []string{
 			"node.example.com/initializing",
 			"cni.example.io/not-ready",
 		},
@@ -301,7 +301,7 @@ func TestExpectedDaemonSets_NoDaemonSets(t *testing.T) {
 func TestExpectedDaemonSets_NoStartupTaintsConfigured(t *testing.T) {
 	scheme := newScheme()
 	cfg := defaultConfig()
-	cfg.StartupTaintKeys = nil // No startup taints to strip.
+	cfg.KnownStartupTaintKeys = nil // No startup taints to strip.
 
 	// Node has a taint that the DS doesn't tolerate.
 	node := newNode(nil, []corev1.Taint{

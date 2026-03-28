@@ -103,7 +103,7 @@ func TestStress(t *testing.T) {
 	cfg := &config.Config{
 		TaintKey:    taintKey,
 		TaintEffect: "NoSchedule",
-		StartupTaintKeys: []string{
+		KnownStartupTaintKeys: []string{
 			taintKey,
 			"node.kubernetes.io/not-ready", // envtest adds this (no kubelet)
 		},

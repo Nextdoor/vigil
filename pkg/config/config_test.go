@@ -14,7 +14,7 @@ func TestNewDefault(t *testing.T) {
 	assert.Equal(t, "node.nextdoor.com/initializing", cfg.TaintKey)
 	assert.Equal(t, "NoSchedule", cfg.TaintEffect)
 	assert.Equal(t, 120, cfg.TimeoutSeconds)
-	assert.Len(t, cfg.StartupTaintKeys, 1)
+	assert.Len(t, cfg.KnownStartupTaintKeys, 1)
 }
 
 func TestLoad_FileNotFound(t *testing.T) {
@@ -30,7 +30,7 @@ func TestLoad_ValidConfig(t *testing.T) {
 taintKey: "custom.taint/key"
 taintEffect: "NoExecute"
 timeoutSeconds: 60
-startupTaintKeys:
+knownStartupTaintKeys:
   - "custom.taint/key"
   - "cni.istio.io/not-ready"
 excludeDaemonSets:
@@ -45,7 +45,7 @@ excludeDaemonSets:
 	assert.Equal(t, "custom.taint/key", cfg.TaintKey)
 	assert.Equal(t, "NoExecute", cfg.TaintEffect)
 	assert.Equal(t, 60, cfg.TimeoutSeconds)
-	assert.Len(t, cfg.StartupTaintKeys, 2)
+	assert.Len(t, cfg.KnownStartupTaintKeys, 2)
 	assert.Len(t, cfg.ExcludeDaemonSets.ByName, 1)
 	assert.Equal(t, "slow-ds", cfg.ExcludeDaemonSets.ByName[0].Name)
 }

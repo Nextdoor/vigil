@@ -57,7 +57,7 @@ func testConfig() *config.Config {
 	return &config.Config{
 		TaintKey:    "node.example.com/initializing",
 		TaintEffect: "NoSchedule",
-		StartupTaintKeys: []string{
+		KnownStartupTaintKeys: []string{
 			"node.example.com/initializing",
 		},
 		TimeoutSeconds: 120,
