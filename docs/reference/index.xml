@@ -6,8 +6,10 @@
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e"># The taint effect to match&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#f92672">taintEffect&lt;/span>: &lt;span style="color:#e6db74">&amp;#34;NoSchedule&amp;#34;&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e"># ALL startup taint keys present in this cluster&lt;/span>
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#f92672">startupTaintKeys&lt;/span>:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e"># All known temporary startup taint keys in the cluster.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e"># Used for DaemonSet discovery only — Vigil does not remove these taints.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e"># Their respective controllers (CSI drivers, CNI plugins) handle removal.&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#f92672">knownStartupTaintKeys&lt;/span>:
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - &lt;span style="color:#e6db74">&amp;#34;node.example.com/initializing&amp;#34;&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - &lt;span style="color:#e6db74">&amp;#34;cni.istio.io/not-ready&amp;#34;&lt;/span>
 &lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - &lt;span style="color:#e6db74">&amp;#34;ebs.csi.aws.com/agent-not-ready&amp;#34;&lt;/span>
@@ -82,10 +84,10 @@
  &lt;td>The taint effect to match&lt;/td>
  &lt;/tr>
  &lt;tr>
- &lt;td>&lt;code>startupTaintKeys&lt;/code>&lt;/td>
+ &lt;td>&lt;code>knownStartupTaintKeys&lt;/code>&lt;/td>
  &lt;td>[]string&lt;/td>
  &lt;td>&lt;code>[taintKey]&lt;/code>&lt;/td>
- &lt;td>All startup taint keys in the cluster&lt;/td>
+ &lt;td>All temporary startup taint keys in the cluster (used for discovery only — Vigil does not remove these)&lt;/td>
  &lt;/tr>
  &lt;tr>
  &lt;td>&lt;code>timeoutSeconds&lt;/code>&lt;/td>
@@ -215,9 +217,9 @@
  &lt;td>Timeout before forced removal&lt;/td>
  &lt;/tr>
  &lt;tr>
- &lt;td>&lt;code>config.startupTaintKeys&lt;/code>&lt;/td>
+ &lt;td>&lt;code>config.knownStartupTaintKeys&lt;/code>&lt;/td>
  &lt;td>See values.yaml&lt;/td>
- &lt;td>All startup taint keys&lt;/td>
+ &lt;td>Temporary startup taints to ignore during discovery&lt;/td>
  &lt;/tr>
  &lt;tr>
  &lt;td>&lt;code>serviceMonitor.enabled&lt;/code>&lt;/td>
