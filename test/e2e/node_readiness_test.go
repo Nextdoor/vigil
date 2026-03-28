@@ -4,8 +4,6 @@ package e2e
 
 import (
 	"context"
-	"fmt"
-	"os/exec"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -54,7 +52,6 @@ var _ = Describe("Node Readiness Controller", Ordered, func() {
 		})
 
 		It("should pass health checks", func() {
-			// Find the metrics service by label selector
 			svcs, err := clientset.CoreV1().Services(helmNamespace).List(ctx, metav1.ListOptions{
 				LabelSelector: "app.kubernetes.io/name=vigil-controller",
 			})
@@ -77,6 +74,17 @@ var _ = Describe("Node Readiness Controller", Ordered, func() {
 		})
 	})
 
+	Context("daemonset inventory", func() {
+		It("should log discovered DaemonSets on startup", func() {
+			// KIND clusters have at least kube-proxy and kindnet DaemonSets.
+			Eventually(func() string {
+				return getDeploymentPodLogs(ctx)
+			}).WithTimeout(30*time.Second).WithPolling(2*time.Second).Should(
+				ContainSubstring("daemonset added"),
+				"inventory controller should log DaemonSet additions on startup")
+		})
+	})
+
 	Context("node watching", func() {
 		It("should remain stable with no restarts over 10 seconds", func() {
 			restarts := getControllerRestartCount(ctx)
@@ -84,26 +92,54 @@ var _ = Describe("Node Readiness Controller", Ordered, func() {
 		})
 	})
 
-	Context("taint detection", func() {
+	Context("taint detection and readiness evaluation", func() {
 		var nodeName string
 
 		BeforeAll(func() {
 			nodeName = getNodeName(ctx)
 		})
 
-		It("should detect a startup taint on a node", func() {
+		It("should detect a startup taint and discover expected DaemonSets", func() {
 			By("Adding startup taint to node")
 			taintNode(ctx, nodeName, testTaintKey, "NoSchedule")
 
-			By("Waiting for controller to log detection")
+			By("Waiting for controller to log taint detection")
 			Eventually(func() string {
 				return getDeploymentPodLogs(ctx)
-			}).WithTimeout(30 * time.Second).WithPolling(2 * time.Second).Should(
+			}).WithTimeout(30*time.Second).WithPolling(2*time.Second).Should(
 				ContainSubstring("node has startup taint"),
 				"controller should detect the startup taint")
+
+			By("Verifying controller evaluates pod readiness")
+			Eventually(func() string {
+				return getDeploymentPodLogs(ctx)
+			}).WithTimeout(30*time.Second).WithPolling(2*time.Second).Should(
+				SatisfyAny(
+					ContainSubstring("all expected DaemonSet pods are Ready"),
+					ContainSubstring("waiting for DaemonSet pods to become Ready"),
+				),
+				"controller should evaluate pod readiness for expected DaemonSets")
 		})
 
-		It("should not crash after detecting a tainted node", func() {
+		It("should report all DaemonSets as Ready", func() {
+			// KIND DaemonSets (kube-proxy, kindnet) are already running and Ready.
+			Eventually(func() string {
+				return getDeploymentPodLogs(ctx)
+			}).WithTimeout(60*time.Second).WithPolling(2*time.Second).Should(
+				ContainSubstring("all expected DaemonSet pods are Ready"),
+				"controller should report all DaemonSet pods as Ready")
+		})
+
+		It("should emit expected and ready DaemonSet metrics", func() {
+			metricsBody := getMetrics(ctx)
+
+			Expect(metricsBody).To(ContainSubstring("vigil_expected_daemonsets"),
+				"metrics should include vigil_expected_daemonsets gauge")
+			Expect(metricsBody).To(ContainSubstring("vigil_ready_daemonsets"),
+				"metrics should include vigil_ready_daemonsets gauge")
+		})
+
+		It("should not crash after evaluating readiness", func() {
 			restarts := getControllerRestartCount(ctx)
 			waitAndCheckNoRestarts(ctx, restarts, 10*time.Second)
 		})
@@ -117,29 +153,11 @@ var _ = Describe("Node Readiness Controller", Ordered, func() {
 
 	Context("metrics endpoint", func() {
 		It("should expose Prometheus metrics", func() {
-			// Run a curl pod to hit the metrics service from inside the cluster
-			svcs, err := clientset.CoreV1().Services(helmNamespace).List(ctx, metav1.ListOptions{
-				LabelSelector: "app.kubernetes.io/name=vigil-controller",
-			})
-			Expect(err).NotTo(HaveOccurred())
-			Expect(svcs.Items).NotTo(BeEmpty())
-
-			svcName := svcs.Items[0].Name
-			metricsURL := fmt.Sprintf("http://%s.%s.svc:8080/metrics", svcName, helmNamespace)
-
-			Eventually(func() string {
-				cmd := exec.Command("kubectl", "run", "curl-test", "--rm", "-i",
-					"--restart=Never", "--image=curlimages/curl:8.5.0",
-					"-n", helmNamespace,
-					"--", "curl", "-sf", "--max-time", "5", metricsURL)
-				out, _ := cmd.CombinedOutput()
-				// Clean up in case the pod lingers
-				_ = exec.Command("kubectl", "delete", "pod", "curl-test",
-					"-n", helmNamespace, "--ignore-not-found").Run()
-				return string(out)
-			}).WithTimeout(60 * time.Second).WithPolling(5 * time.Second).Should(
-				ContainSubstring("controller_runtime_reconcile_total"),
+			metricsBody := getMetrics(ctx)
+			Expect(metricsBody).To(ContainSubstring("controller_runtime_reconcile_total"),
 				"metrics should include controller-runtime reconcile metrics")
+			Expect(metricsBody).To(ContainSubstring("vigil_discovery_duration_seconds"),
+				"metrics should include vigil discovery duration histogram")
 		})
 	})
 })

@@ -33,10 +33,10 @@ func newDaemonSet(namespace, name string) appsv1.DaemonSet {
 	}
 }
 
-func newPod(namespace, name, nodeName string, ownerDS *appsv1.DaemonSet, phase corev1.PodPhase, ready bool) *corev1.Pod {
+func newPod(name, nodeName string, ownerDS *appsv1.DaemonSet, phase corev1.PodPhase, ready bool) *corev1.Pod {
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
+			Namespace: "kube-system",
 			Name:      name,
 		},
 		Spec: corev1.PodSpec{
@@ -75,8 +75,8 @@ func TestCheckNode_AllReady(t *testing.T) {
 	ds1 := newDaemonSet("kube-system", "kube-proxy")
 	ds2 := newDaemonSet("kube-system", "aws-node")
 
-	pod1 := newPod("kube-system", "kube-proxy-abc", "node-1", &ds1, corev1.PodRunning, true)
-	pod2 := newPod("kube-system", "aws-node-xyz", "node-1", &ds2, corev1.PodRunning, true)
+	pod1 := newPod("kube-proxy-abc", "node-1", &ds1, corev1.PodRunning, true)
+	pod2 := newPod("aws-node-xyz", "node-1", &ds2, corev1.PodRunning, true)
 
 	cl := fake.NewClientBuilder().WithScheme(scheme).
 		WithObjects(pod1, pod2).
@@ -101,8 +101,8 @@ func TestCheckNode_SomeNotReady(t *testing.T) {
 	ds1 := newDaemonSet("kube-system", "kube-proxy")
 	ds2 := newDaemonSet("kube-system", "aws-node")
 
-	pod1 := newPod("kube-system", "kube-proxy-abc", "node-1", &ds1, corev1.PodRunning, true)
-	pod2 := newPod("kube-system", "aws-node-xyz", "node-1", &ds2, corev1.PodPending, false)
+	pod1 := newPod("kube-proxy-abc", "node-1", &ds1, corev1.PodRunning, true)
+	pod2 := newPod("aws-node-xyz", "node-1", &ds2, corev1.PodPending, false)
 
 	cl := fake.NewClientBuilder().WithScheme(scheme).
 		WithObjects(pod1, pod2).
@@ -144,7 +144,7 @@ func TestCheckNode_PodOnDifferentNode(t *testing.T) {
 	ds1 := newDaemonSet("kube-system", "kube-proxy")
 
 	// Pod is on node-2, we're checking node-1.
-	pod := newPod("kube-system", "kube-proxy-abc", "node-2", &ds1, corev1.PodRunning, true)
+	pod := newPod("kube-proxy-abc", "node-2", &ds1, corev1.PodRunning, true)
 
 	cl := fake.NewClientBuilder().WithScheme(scheme).
 		WithObjects(pod).
@@ -165,7 +165,7 @@ func TestCheckNode_PodWithoutOwner(t *testing.T) {
 	ds1 := newDaemonSet("kube-system", "kube-proxy")
 
 	// Pod on the right node but no owner reference.
-	pod := newPod("kube-system", "orphan-pod", "node-1", nil, corev1.PodRunning, true)
+	pod := newPod("orphan-pod", "node-1", nil, corev1.PodRunning, true)
 
 	cl := fake.NewClientBuilder().WithScheme(scheme).
 		WithObjects(pod).
