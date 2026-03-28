@@ -31,6 +31,25 @@ func (nr *NodeRecord) RemovalLatency() time.Duration {
 	return nr.TaintRemovedAt.Sub(nr.CreatedAt)
 }
 
+// PodStartupLatency returns how long it took for all DaemonSet pods to become Ready.
+// Returns 0 for never-ready nodes (pods never became Ready).
+func (nr *NodeRecord) PodStartupLatency() time.Duration {
+	if nr.PodsReadyAt.IsZero() || nr.CreatedAt.IsZero() {
+		return 0
+	}
+	return nr.PodsReadyAt.Sub(nr.CreatedAt)
+}
+
+// VigilReactionTime returns how long after pods were Ready the taint was removed.
+// This isolates Vigil's overhead from pod startup time.
+// Returns 0 for never-ready nodes or nodes still pending.
+func (nr *NodeRecord) VigilReactionTime() time.Duration {
+	if nr.PodsReadyAt.IsZero() || nr.TaintRemovedAt.IsZero() {
+		return 0
+	}
+	return nr.TaintRemovedAt.Sub(nr.PodsReadyAt)
+}
+
 // NodeTracker provides thread-safe tracking of node outcomes.
 type NodeTracker struct {
 	mu       sync.RWMutex
@@ -148,32 +167,62 @@ func (nt *NodeTracker) profileDistributionLocked() map[string]int {
 	return dist
 }
 
-// RemovalLatencyPercentiles returns p50, p95, p99 for taint removal latency.
-func (nt *NodeTracker) RemovalLatencyPercentiles() (p50, p95, p99 time.Duration) {
-	nt.mu.RLock()
-	defer nt.mu.RUnlock()
-
-	var latencies []time.Duration
-	for _, rec := range nt.nodes {
-		if l := rec.RemovalLatency(); l > 0 {
-			latencies = append(latencies, l)
-		}
-	}
+// computePercentiles returns p50, p95, p99 from a slice of durations.
+func computePercentiles(latencies []time.Duration) (p50, p95, p99 time.Duration) {
 	if len(latencies) == 0 {
 		return 0, 0, 0
 	}
-
 	sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
-
-	percentile := func(p float64) time.Duration {
+	pct := func(p float64) time.Duration {
 		idx := int(math.Ceil(p*float64(len(latencies)))) - 1
 		if idx < 0 {
 			idx = 0
 		}
 		return latencies[idx]
 	}
+	return pct(0.50), pct(0.95), pct(0.99)
+}
 
-	return percentile(0.50), percentile(0.95), percentile(0.99)
+// RemovalLatencyPercentiles returns p50, p95, p99 for end-to-end taint removal latency
+// (node creation to taint removal).
+func (nt *NodeTracker) RemovalLatencyPercentiles() (p50, p95, p99 time.Duration) {
+	nt.mu.RLock()
+	defer nt.mu.RUnlock()
+	var latencies []time.Duration
+	for _, rec := range nt.nodes {
+		if l := rec.RemovalLatency(); l > 0 {
+			latencies = append(latencies, l)
+		}
+	}
+	return computePercentiles(latencies)
+}
+
+// PodStartupPercentiles returns p50, p95, p99 for pod startup latency
+// (node creation to all DaemonSet pods Ready). Excludes never-ready nodes.
+func (nt *NodeTracker) PodStartupPercentiles() (p50, p95, p99 time.Duration) {
+	nt.mu.RLock()
+	defer nt.mu.RUnlock()
+	var latencies []time.Duration
+	for _, rec := range nt.nodes {
+		if l := rec.PodStartupLatency(); l > 0 {
+			latencies = append(latencies, l)
+		}
+	}
+	return computePercentiles(latencies)
+}
+
+// VigilReactionPercentiles returns p50, p95, p99 for Vigil's reaction time
+// (pods Ready to taint removal). Excludes never-ready and pending nodes.
+func (nt *NodeTracker) VigilReactionPercentiles() (p50, p95, p99 time.Duration) {
+	nt.mu.RLock()
+	defer nt.mu.RUnlock()
+	var latencies []time.Duration
+	for _, rec := range nt.nodes {
+		if l := rec.VigilReactionTime(); l > 0 {
+			latencies = append(latencies, l)
+		}
+	}
+	return computePercentiles(latencies)
 }
 
 // Done returns a channel that is closed when all registered nodes are terminal.

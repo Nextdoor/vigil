@@ -16,15 +16,15 @@ import (
 
 // StressTestResults is the top-level JSON schema for stress test output.
 type StressTestResults struct {
-	Timestamp         string         `json:"timestamp"`
-	GitSHA            string         `json:"git_sha"`
-	TestConfig        TestConfig     `json:"test_config"`
-	Latency           LatencyResults `json:"latency"`
-	Counts            CountResults   `json:"counts"`
-	ProfileDistro     map[string]int `json:"profile_distribution"`
-	Memory            MemorySummary  `json:"memory"`
-	ResourceSamples   []ResourceSample `json:"resource_samples"`
-	Duration          DurationResults  `json:"duration"`
+	Timestamp         string            `json:"timestamp"`
+	GitSHA            string            `json:"git_sha"`
+	TestConfig        TestConfig        `json:"test_config"`
+	Latency           LatencyBreakdown  `json:"latency"`
+	Counts            CountResults      `json:"counts"`
+	ProfileDistro     map[string]int    `json:"profile_distribution"`
+	Memory            MemorySummary     `json:"memory"`
+	ResourceSamples   []ResourceSample  `json:"resource_samples"`
+	Duration          DurationResults   `json:"duration"`
 }
 
 // TestConfig captures the parameters used for a stress test run.
@@ -38,8 +38,21 @@ type TestConfig struct {
 	DaemonSetCount    int `json:"daemonset_count"`
 }
 
-// LatencyResults captures taint removal latency percentiles.
-type LatencyResults struct {
+// LatencyBreakdown captures latency percentiles broken into three phases.
+type LatencyBreakdown struct {
+	// EndToEnd is the total time from node creation to taint removal.
+	EndToEnd LatencyPercentiles `json:"end_to_end"`
+	// PodStartup is the time from node creation to all DaemonSet pods Ready.
+	// Excludes never-ready nodes.
+	PodStartup LatencyPercentiles `json:"pod_startup"`
+	// VigilReaction is the time from pods Ready to taint removal.
+	// Isolates Vigil's overhead from pod startup time.
+	// Excludes never-ready and pending nodes.
+	VigilReaction LatencyPercentiles `json:"vigil_reaction"`
+}
+
+// LatencyPercentiles captures p50/p95/p99 for a single latency metric.
+type LatencyPercentiles struct {
 	P50Ms float64 `json:"p50_ms"`
 	P95Ms float64 `json:"p95_ms"`
 	P99Ms float64 `json:"p99_ms"`

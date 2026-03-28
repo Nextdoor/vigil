@@ -91,12 +91,13 @@ Read `test/stress/results/latest.json`. Present a summary:
 | Success | <count> (<pct>%) |
 | Timeout | <count> (<pct>%) |
 | Pending | <count> |
-| p50 Latency | <ms>ms |
-| p95 Latency | <ms>ms |
-| p99 Latency | <ms>ms |
+| Pod Startup p50 | <ms>ms |
+| Pod Startup p99 | <ms>ms |
+| Vigil Reaction p50 | <ms>ms |
+| Vigil Reaction p99 | <ms>ms |
+| End-to-End p50 | <ms>ms |
+| End-to-End p99 | <ms>ms |
 | Peak Heap | <mb> MB |
-| Final Heap | <mb> MB |
-| GC CPU | <pct>% |
 | Duration | <sec>s |
 | Git SHA | <sha> |
 ```
@@ -113,9 +114,10 @@ both results side-by-side but skip percentage-based regression checks.
 
 | Metric | Threshold |
 |--------|-----------|
-| p50 latency | >20% increase |
-| p95 latency | >20% increase |
-| p99 latency | >20% increase |
+| Vigil reaction p50 | >20% increase |
+| Vigil reaction p99 | >20% increase |
+| End-to-end p50 | >20% increase |
+| End-to-end p99 | >20% increase |
 | Success rate | any decrease (success/total) |
 | Peak heap memory | >50% increase |
 | Total duration | >30% increase |
@@ -163,11 +165,40 @@ weight: 40
 
 ### Latency
 
+The stress test measures three distinct latency phases:
+
+- **Pod startup** — time from node creation until all expected DaemonSet pods
+  become Ready. This is dominated by simulated pod startup delays and reflects
+  real-world DaemonSet boot time. Excludes never-ready nodes.
+- **Vigil reaction** — time from all pods becoming Ready until the taint is
+  removed. This isolates Vigil's controller overhead: reconcile loop detection,
+  readiness verification, and the taint removal API call.
+- **End-to-end** — total time from node creation to taint removal. For
+  never-ready nodes, this equals the controller timeout.
+
+#### Pod Startup Latency
+
 | Percentile | Latency |
 |------------|---------|
-| p50 | <ms>ms |
-| p95 | <ms>ms |
-| p99 | <ms>ms |
+| p50 | <latency.pod_startup.p50_ms>ms |
+| p95 | <latency.pod_startup.p95_ms>ms |
+| p99 | <latency.pod_startup.p99_ms>ms |
+
+#### Vigil Reaction Time
+
+| Percentile | Latency |
+|------------|---------|
+| p50 | <latency.vigil_reaction.p50_ms>ms |
+| p95 | <latency.vigil_reaction.p95_ms>ms |
+| p99 | <latency.vigil_reaction.p99_ms>ms |
+
+#### End-to-End Latency
+
+| Percentile | Latency |
+|------------|---------|
+| p50 | <latency.end_to_end.p50_ms>ms |
+| p95 | <latency.end_to_end.p95_ms>ms |
+| p99 | <latency.end_to_end.p99_ms>ms |
 
 ### Outcomes
 

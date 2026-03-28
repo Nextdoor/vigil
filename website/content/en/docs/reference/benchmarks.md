@@ -8,17 +8,46 @@ weight: 40
 
 ## Latest Benchmark Results
 
-**Run date:** 2026-03-28T21:18:58Z
-**Git SHA:** `44bf06b`
+**Run date:** 2026-03-28T21:28:49Z
+**Git SHA:** `fdb08bc`
 **Node count:** 100
 
 ### Latency
 
+The stress test measures three distinct latency phases:
+
+- **Pod startup** — time from node creation until all expected DaemonSet pods
+  become Ready. This is dominated by simulated pod startup delays and reflects
+  real-world DaemonSet boot time. Excludes never-ready nodes.
+- **Vigil reaction** — time from all pods becoming Ready until the taint is
+  removed. This isolates Vigil's controller overhead: reconcile loop detection,
+  readiness verification, and the taint removal API call.
+- **End-to-end** — total time from node creation to taint removal. For
+  never-ready nodes, this equals the controller timeout.
+
+#### Pod Startup Latency
+
 | Percentile | Latency |
 |------------|---------|
-| p50 | 4,592ms |
-| p95 | 31,227ms |
-| p99 | 31,640ms |
+| p50 | 3,426ms |
+| p95 | 45,695ms |
+| p99 | 55,350ms |
+
+#### Vigil Reaction Time
+
+| Percentile | Latency |
+|------------|---------|
+| p50 | 1,020ms |
+| p95 | 1,877ms |
+| p99 | 1,992ms |
+
+#### End-to-End Latency
+
+| Percentile | Latency |
+|------------|---------|
+| p50 | 4,569ms |
+| p95 | 31,219ms |
+| p99 | 31,646ms |
 
 ### Outcomes
 
@@ -32,27 +61,27 @@ weight: 40
 
 | Metric | Value |
 |--------|-------|
-| Peak Heap | 8.9 MB |
-| Final Heap | 7.9 MB |
-| System Memory | 28.4 MB |
-| GC Cycles | 26 |
+| Peak Heap | 10.0 MB |
+| Final Heap | 10.1 MB |
+| System Memory | 28.1 MB |
+| GC Cycles | 27 |
 | GC CPU Fraction | 0.02% |
 
 ### Memory Over Time
 
 | Elapsed (s) | Heap (MB) | System (MB) | Goroutines | GC Cycles |
 |-------------|-----------|-------------|------------|-----------|
-| 5.0 | 7.5 | 28.4 | 150 | 20 |
-| 10.0 | 5.6 | 28.4 | 133 | 23 |
-| 15.0 | 6.0 | 28.4 | 127 | 24 |
-| 20.0 | 8.3 | 28.4 | 126 | 24 |
-| 25.0 | 6.7 | 28.4 | 122 | 25 |
-| 30.0 | 8.9 | 28.4 | 120 | 25 |
-| 35.0 | 6.8 | 28.4 | 117 | 26 |
-| 40.0 | 6.9 | 28.4 | 116 | 26 |
-| 45.0 | 6.9 | 28.4 | 116 | 26 |
-| 50.0 | 7.3 | 28.4 | 113 | 26 |
-| 55.0 | 7.8 | 28.4 | 110 | 26 |
+| 5.0 | 8.3 | 27.9 | 110 | 21 |
+| 10.0 | 7.8 | 27.9 | 94 | 24 |
+| 15.0 | 8.5 | 27.9 | 87 | 25 |
+| 20.0 | 5.9 | 28.1 | 86 | 26 |
+| 25.0 | 9.3 | 28.1 | 82 | 26 |
+| 30.0 | 6.4 | 28.1 | 80 | 27 |
+| 35.0 | 9.0 | 28.1 | 77 | 27 |
+| 40.0 | 9.1 | 28.1 | 76 | 27 |
+| 45.0 | 9.1 | 28.1 | 76 | 27 |
+| 50.0 | 9.6 | 28.1 | 73 | 27 |
+| 55.0 | 10.0 | 28.1 | 70 | 27 |
 
 ### Test Configuration
 
@@ -61,8 +90,8 @@ weight: 40
 | Node Count | 100 |
 | Node Rate | 50/sec |
 | Controller Timeout | 30s |
-| Max Concurrent Reconciles | 50 |
-| API Concurrency | 150 |
+| Max Concurrent Reconciles | 10 |
+| API Concurrency | 50 |
 | DaemonSet Count | 3 |
 | Total Duration | 56.5s |
 

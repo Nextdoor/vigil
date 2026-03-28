@@ -267,8 +267,13 @@ func TestStress(t *testing.T) {
 	summary := tracker.PrintSummary()
 	t.Log(summary)
 
-	p50, p95, p99 := tracker.RemovalLatencyPercentiles()
-	t.Logf("Latency: p50=%v p95=%v p99=%v", p50, p95, p99)
+	e2eP50, e2eP95, e2eP99 := tracker.RemovalLatencyPercentiles()
+	podP50, podP95, podP99 := tracker.PodStartupPercentiles()
+	vigilP50, vigilP95, vigilP99 := tracker.VigilReactionPercentiles()
+
+	t.Logf("End-to-end latency:    p50=%v p95=%v p99=%v", e2eP50, e2eP95, e2eP99)
+	t.Logf("Pod startup latency:   p50=%v p95=%v p99=%v", podP50, podP95, podP99)
+	t.Logf("Vigil reaction time:   p50=%v p95=%v p99=%v", vigilP50, vigilP95, vigilP99)
 
 	// ---------- Write structured results ----------
 	var finalMem runtime.MemStats
@@ -287,10 +292,22 @@ func TestStress(t *testing.T) {
 			APIConcurrency:    apiConcurrency,
 			DaemonSetCount:    len(daemonSets),
 		},
-		Latency: LatencyResults{
-			P50Ms: float64(p50.Milliseconds()),
-			P95Ms: float64(p95.Milliseconds()),
-			P99Ms: float64(p99.Milliseconds()),
+		Latency: LatencyBreakdown{
+			EndToEnd: LatencyPercentiles{
+				P50Ms: float64(e2eP50.Milliseconds()),
+				P95Ms: float64(e2eP95.Milliseconds()),
+				P99Ms: float64(e2eP99.Milliseconds()),
+			},
+			PodStartup: LatencyPercentiles{
+				P50Ms: float64(podP50.Milliseconds()),
+				P95Ms: float64(podP95.Milliseconds()),
+				P99Ms: float64(podP99.Milliseconds()),
+			},
+			VigilReaction: LatencyPercentiles{
+				P50Ms: float64(vigilP50.Milliseconds()),
+				P95Ms: float64(vigilP95.Milliseconds()),
+				P99Ms: float64(vigilP99.Milliseconds()),
+			},
 		},
 		Counts: CountResults{
 			Total:   nodeCount,
@@ -342,13 +359,16 @@ func TestStress(t *testing.T) {
 		"success count should be ~95%%")
 
 	// 5. Latency sanity checks.
-	// p50 should be under 30s (most nodes are "immediate" with 1-5s delay).
-	assert.Less(t, p50, 30*time.Second, "p50 latency should be under 30s")
+	// End-to-end p50 should be under 30s (most nodes are "immediate" with 1-5s delay).
+	assert.Less(t, e2eP50, 30*time.Second, "e2e p50 latency should be under 30s")
 
-	// p99 should be under the controller timeout + buffer.
+	// End-to-end p99 should be under the controller timeout + buffer.
 	maxExpected := time.Duration(controllerTimeout)*time.Second + 30*time.Second
-	assert.Less(t, p99, maxExpected,
-		"p99 latency should be under controller timeout + 30s buffer")
+	assert.Less(t, e2eP99, maxExpected,
+		"e2e p99 latency should be under controller timeout + 30s buffer")
+
+	// Vigil reaction p50 should be under 5s (controller overhead only).
+	assert.Less(t, vigilP50, 5*time.Second, "vigil reaction p50 should be under 5s")
 
 	// 6. No pending nodes.
 	assert.Zero(t, tracker.PendingCount(), "no nodes should be pending")

@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-03-28T21:10:21Z",
-  "git_sha": "0aa60a2",
+  "timestamp": "2026-03-28T21:28:49Z",
+  "git_sha": "fdb08bc",
   "test_config": {
     "node_count": 100,
     "node_rate": 50,
@@ -11,9 +11,21 @@
     "daemonset_count": 3
   },
   "latency": {
-    "p50_ms": 4578,
-    "p95_ms": 31229,
-    "p99_ms": 31645
+    "end_to_end": {
+      "p50_ms": 4569,
+      "p95_ms": 31219,
+      "p99_ms": 31646
+    },
+    "pod_startup": {
+      "p50_ms": 3426,
+      "p95_ms": 45695,
+      "p99_ms": 55350
+    },
+    "vigil_reaction": {
+      "p50_ms": 1020,
+      "p95_ms": 1877,
+      "p99_ms": 1992
+    }
   },
   "counts": {
     "total": 100,
@@ -28,104 +40,104 @@
     "never-ready": 5
   },
   "memory": {
-    "peak_heap_alloc_mb": 9.909133911132812,
-    "final_heap_alloc_mb": 8.835296630859375,
-    "final_sys_mb": 29.14185333251953,
-    "total_gc_cycles": 28,
-    "gc_cpu_fraction": 0.00031903139532388794
+    "peak_heap_alloc_mb": 9.9886474609375,
+    "final_heap_alloc_mb": 10.1475830078125,
+    "final_sys_mb": 28.14185333251953,
+    "total_gc_cycles": 27,
+    "gc_cpu_fraction": 0.00016875570109732059
   },
   "resource_samples": [
     {
-      "elapsed_sec": 5.000971542,
-      "heap_alloc_mb": 8.255241394042969,
-      "sys_mb": 24.89185333251953,
+      "elapsed_sec": 5.000894083,
+      "heap_alloc_mb": 8.317054748535156,
+      "sys_mb": 27.89185333251953,
       "num_gc": 21,
       "num_goroutine": 110,
-      "gc_cpu_fraction": 0.0008222629028832076
+      "gc_cpu_fraction": 0.0004617341982339345
     },
     {
-      "elapsed_sec": 10.001094709,
-      "heap_alloc_mb": 8.657814025878906,
-      "sys_mb": 29.14185333251953,
+      "elapsed_sec": 10.00097,
+      "heap_alloc_mb": 7.757270812988281,
+      "sys_mb": 27.89185333251953,
       "num_gc": 24,
-      "num_goroutine": 93,
-      "gc_cpu_fraction": 0.0008088565156882403
+      "num_goroutine": 94,
+      "gc_cpu_fraction": 0.00040183738103220475
     },
     {
-      "elapsed_sec": 15.00090775,
-      "heap_alloc_mb": 6.114097595214844,
-      "sys_mb": 29.14185333251953,
-      "num_gc": 26,
+      "elapsed_sec": 15.000910625,
+      "heap_alloc_mb": 8.527137756347656,
+      "sys_mb": 27.89185333251953,
+      "num_gc": 25,
       "num_goroutine": 87,
-      "gc_cpu_fraction": 0.0005582118194905119
+      "gc_cpu_fraction": 0.00031534860933660295
     },
     {
-      "elapsed_sec": 20.000554042,
-      "heap_alloc_mb": 8.404426574707031,
-      "sys_mb": 29.14185333251953,
+      "elapsed_sec": 20.001042542,
+      "heap_alloc_mb": 5.913825988769531,
+      "sys_mb": 28.14185333251953,
       "num_gc": 26,
       "num_goroutine": 86,
-      "gc_cpu_fraction": 0.0005582118194905119
+      "gc_cpu_fraction": 0.0002421826398101771
     },
     {
-      "elapsed_sec": 25.001007792,
-      "heap_alloc_mb": 7.7799224853515625,
-      "sys_mb": 29.14185333251953,
-      "num_gc": 27,
+      "elapsed_sec": 25.00093725,
+      "heap_alloc_mb": 9.29095458984375,
+      "sys_mb": 28.14185333251953,
+      "num_gc": 26,
       "num_goroutine": 82,
-      "gc_cpu_fraction": 0.00040460115275146765
+      "gc_cpu_fraction": 0.0002421826398101771
     },
     {
-      "elapsed_sec": 30.000489709,
-      "heap_alloc_mb": 9.909133911132812,
-      "sys_mb": 29.14185333251953,
+      "elapsed_sec": 30.001052833,
+      "heap_alloc_mb": 6.3591766357421875,
+      "sys_mb": 28.14185333251953,
       "num_gc": 27,
       "num_goroutine": 80,
-      "gc_cpu_fraction": 0.00040460115275146765
+      "gc_cpu_fraction": 0.00016875570109732059
     },
     {
-      "elapsed_sec": 35.00078975,
-      "heap_alloc_mb": 7.691429138183594,
-      "sys_mb": 29.14185333251953,
-      "num_gc": 28,
+      "elapsed_sec": 35.001079042,
+      "heap_alloc_mb": 8.993682861328125,
+      "sys_mb": 28.14185333251953,
+      "num_gc": 27,
       "num_goroutine": 77,
-      "gc_cpu_fraction": 0.00031903139532388794
+      "gc_cpu_fraction": 0.00016875570109732059
     },
     {
-      "elapsed_sec": 40.000985417,
-      "heap_alloc_mb": 7.835044860839844,
-      "sys_mb": 29.14185333251953,
-      "num_gc": 28,
+      "elapsed_sec": 40.0009505,
+      "heap_alloc_mb": 9.137718200683594,
+      "sys_mb": 28.14185333251953,
+      "num_gc": 27,
       "num_goroutine": 76,
-      "gc_cpu_fraction": 0.00031903139532388794
+      "gc_cpu_fraction": 0.00016875570109732059
     },
     {
-      "elapsed_sec": 45.000798209,
-      "heap_alloc_mb": 7.835044860839844,
-      "sys_mb": 29.14185333251953,
-      "num_gc": 28,
+      "elapsed_sec": 45.001051917,
+      "heap_alloc_mb": 9.137718200683594,
+      "sys_mb": 28.14185333251953,
+      "num_gc": 27,
       "num_goroutine": 76,
-      "gc_cpu_fraction": 0.00031903139532388794
+      "gc_cpu_fraction": 0.00016875570109732059
     },
     {
-      "elapsed_sec": 50.000822042,
-      "heap_alloc_mb": 8.260498046875,
-      "sys_mb": 29.14185333251953,
-      "num_gc": 28,
+      "elapsed_sec": 50.001030708,
+      "heap_alloc_mb": 9.563224792480469,
+      "sys_mb": 28.14185333251953,
+      "num_gc": 27,
       "num_goroutine": 73,
-      "gc_cpu_fraction": 0.00031903139532388794
+      "gc_cpu_fraction": 0.00016875570109732059
     },
     {
-      "elapsed_sec": 55.000536334,
-      "heap_alloc_mb": 8.683731079101562,
-      "sys_mb": 29.14185333251953,
-      "num_gc": 28,
+      "elapsed_sec": 55.000707542,
+      "heap_alloc_mb": 9.9886474609375,
+      "sys_mb": 28.14185333251953,
+      "num_gc": 27,
       "num_goroutine": 70,
-      "gc_cpu_fraction": 0.00031903139532388794
+      "gc_cpu_fraction": 0.00016875570109732059
     }
   ],
   "duration": {
-    "creation_sec": 2.001728542,
-    "total_sec": 56.540774167
+    "creation_sec": 2.00171175,
+    "total_sec": 56.5127115
   }
 }
