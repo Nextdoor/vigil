@@ -218,11 +218,55 @@ The stress test measures three distinct latency phases:
 | GC Cycles | <n> |
 | GC CPU Fraction | <pct>% |
 
-### Memory Over Time
+### Resource Utilization Over Time
+
+Generate two Mermaid xychart-beta charts from the resource_samples data.
+**Downsample to ~30 data points** by selecting every Nth sample where
+N = len(samples) / 30 (rounded up). Round heap values to integers.
+
+#### Heap Memory
+
+~~~markdown
+```mermaid
+xychart-beta
+    title "Heap Allocation Over Time"
+    x-axis "Elapsed (s)" [<downsampled elapsed_sec values, rounded to int>]
+    y-axis "Heap (MB)" 0 --> <max_heap rounded up to next 50>
+    line [<downsampled heap_alloc_mb values, rounded to int>]
+```
+~~~
+
+#### Goroutines
+
+~~~markdown
+```mermaid
+xychart-beta
+    title "Active Goroutines Over Time"
+    x-axis "Elapsed (s)" [<same downsampled elapsed_sec values>]
+    y-axis "Goroutines" 0 --> <max_goroutines rounded up to next 50>
+    line [<downsampled num_goroutine values>]
+```
+~~~
+
+After the charts, add this explanatory paragraph:
+
+> Memory grows linearly with node count as the informer cache accumulates
+> Node and Pod objects. The sawtooth pattern in heap allocation shows the Go
+> garbage collector reclaiming memory between allocation bursts. Goroutine
+> count remaining stable confirms no goroutine leaks.
+
+Then include the full raw data in a collapsed details block:
+
+~~~markdown
+<details>
+<summary>Raw data (<N> samples)</summary>
 
 | Elapsed (s) | Heap (MB) | System (MB) | Goroutines | GC Cycles |
 |-------------|-----------|-------------|------------|-----------|
 | <one row per resource_sample, values rounded to 1 decimal> |
+
+</details>
+~~~
 
 ### Test Configuration
 
