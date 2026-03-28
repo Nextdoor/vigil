@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Concepts on Vigil Controller</title><link>https://oss.nextdoor.com/vigil-controller/docs/concepts/</link><description>Recent content in Concepts on Vigil Controller</description><generator>Hugo</generator><language>en</language><atom:link href="https://oss.nextdoor.com/vigil-controller/docs/concepts/index.xml" rel="self" type="application/rss+xml"/><item><title>Architecture</title><link>https://oss.nextdoor.com/vigil-controller/docs/concepts/architecture/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://oss.nextdoor.com/vigil-controller/docs/concepts/architecture/</guid><description>&lt;h2 id="overview">Overview&lt;/h2>
+&lt;p>Vigil is a single-binary Kubernetes controller built with controller-runtime. It runs one instance per cluster with leader election for high availability.&lt;/p>
+&lt;h2 id="components">Components&lt;/h2>
+&lt;table>
+ &lt;thead>
+ &lt;tr>
+ &lt;th>Component&lt;/th>
+ &lt;th>Purpose&lt;/th>
+ &lt;/tr>
+ &lt;/thead>
+ &lt;tbody>
+ &lt;tr>
+ &lt;td>Node Informer&lt;/td>
+ &lt;td>Watches nodes for startup taint changes&lt;/td>
+ &lt;/tr>
+ &lt;tr>
+ &lt;td>Pod Informer&lt;/td>
+ &lt;td>Watches pods for DaemonSet readiness transitions&lt;/td>
+ &lt;/tr>
+ &lt;tr>
+ &lt;td>DaemonSet Cache&lt;/td>
+ &lt;td>Caches DaemonSet list for scheduling rule evaluation&lt;/td>
+ &lt;/tr>
+ &lt;tr>
+ &lt;td>Node Reconciler&lt;/td>
+ &lt;td>Core logic: discover expected DaemonSets, check readiness, remove taint&lt;/td>
+ &lt;/tr>
+ &lt;/tbody>
+&lt;/table>
+&lt;h2 id="data-flow">Data Flow&lt;/h2>
+&lt;ol>
+&lt;li>A new node appears with the configured startup taint&lt;/li>
+&lt;li>The Node Informer triggers a reconciliation&lt;/li>
+&lt;li>The reconciler evaluates all DaemonSets against the node&amp;rsquo;s labels, affinity, and taints&lt;/li>
+&lt;li>For each expected DaemonSet, the reconciler checks if a Ready pod exists on the node&lt;/li>
+&lt;li>If all expected DaemonSet pods are Ready, the taint is removed&lt;/li>
+&lt;li>If not, the node is requeued for re-evaluation&lt;/li>
+&lt;/ol>
+&lt;h2 id="safe-taint-removal">Safe Taint Removal&lt;/h2>
+&lt;p>Vigil uses fresh API server reads (not informer cache) when removing taints, with optimistic concurrency via &lt;code>resourceVersion&lt;/code>. This avoids the stale-cache bug that affected Istio&amp;rsquo;s untaint controller.&lt;/p></description></item><item><title>DaemonSet Discovery</title><link>https://oss.nextdoor.com/vigil-controller/docs/concepts/daemonset-discovery/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://oss.nextdoor.com/vigil-controller/docs/concepts/daemonset-discovery/</guid><description>&lt;h2 id="overview">Overview&lt;/h2>
+&lt;p>Vigil auto-discovers which DaemonSets should run on each tainted node by replicating the kube-scheduler&amp;rsquo;s DaemonSet scheduling logic using the upstream &lt;code>k8s.io/component-helpers&lt;/code> package.&lt;/p>
+&lt;h2 id="algorithm">Algorithm&lt;/h2>
+&lt;p>For each DaemonSet in the cluster:&lt;/p>
+&lt;ol>
+&lt;li>Build a synthetic Pod from the DaemonSet&amp;rsquo;s pod template&lt;/li>
+&lt;li>Evaluate &lt;code>nodeSelector&lt;/code> and &lt;code>nodeAffinity&lt;/code> against the node&lt;/li>
+&lt;li>Compute the node&amp;rsquo;s &amp;ldquo;steady-state&amp;rdquo; taints by stripping all configured startup taint keys&lt;/li>
+&lt;li>Check that the DaemonSet tolerates all remaining (steady-state) taints&lt;/li>
+&lt;li>If all checks pass, the DaemonSet is expected on this node&lt;/li>
+&lt;/ol>
+&lt;h2 id="why-strip-startup-taints">Why Strip Startup Taints&lt;/h2>
+&lt;p>A brand-new node has multiple startup taints (Vigil&amp;rsquo;s, Istio CNI&amp;rsquo;s, EBS CSI&amp;rsquo;s, EFS CSI&amp;rsquo;s). These are all temporary. We want to answer &amp;ldquo;will this DaemonSet run in steady state?&amp;rdquo; not &amp;ldquo;can this DaemonSet tolerate the node right now?&amp;rdquo;&lt;/p></description></item></channel></rss>

@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Reference on Vigil Controller</title><link>https://oss.nextdoor.com/vigil-controller/docs/reference/</link><description>Recent content in Reference on Vigil Controller</description><generator>Hugo</generator><language>en</language><atom:link href="https://oss.nextdoor.com/vigil-controller/docs/reference/index.xml" rel="self" type="application/rss+xml"/><item><title>Configuration</title><link>https://oss.nextdoor.com/vigil-controller/docs/reference/configuration/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://oss.nextdoor.com/vigil-controller/docs/reference/configuration/</guid><description>&lt;h2 id="configuration-file">Configuration File&lt;/h2>
+&lt;p>Vigil reads configuration from a YAML file (default: &lt;code>/etc/vigil/config/config.yaml&lt;/code>).&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e"># The taint key to watch for and remove&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#f92672">taintKey&lt;/span>: &lt;span style="color:#e6db74">&amp;#34;node.example.com/initializing&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e"># The taint effect to match&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#f92672">taintEffect&lt;/span>: &lt;span style="color:#e6db74">&amp;#34;NoSchedule&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e"># ALL startup taint keys present in this cluster&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#f92672">startupTaintKeys&lt;/span>:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - &lt;span style="color:#e6db74">&amp;#34;node.example.com/initializing&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - &lt;span style="color:#e6db74">&amp;#34;cni.istio.io/not-ready&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - &lt;span style="color:#e6db74">&amp;#34;ebs.csi.aws.com/agent-not-ready&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - &lt;span style="color:#e6db74">&amp;#34;efs.csi.aws.com/agent-not-ready&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e"># Maximum time to wait before removing taint anyway (seconds)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#f92672">timeoutSeconds&lt;/span>: &lt;span style="color:#ae81ff">120&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e"># DaemonSets to exclude from readiness checks&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#f92672">excludeDaemonSets&lt;/span>:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#f92672">byName&lt;/span>:
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> - &lt;span style="color:#f92672">namespace&lt;/span>: &lt;span style="color:#ae81ff">kube-system&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#f92672">name&lt;/span>: &lt;span style="color:#ae81ff">slow-daemonset&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="cli-flags">CLI Flags&lt;/h2>
+&lt;table>
+ &lt;thead>
+ &lt;tr>
+ &lt;th>Flag&lt;/th>
+ &lt;th>Default&lt;/th>
+ &lt;th>Description&lt;/th>
+ &lt;/tr>
+ &lt;/thead>
+ &lt;tbody>
+ &lt;tr>
+ &lt;td>&lt;code>--config&lt;/code>&lt;/td>
+ &lt;td>&lt;code>/etc/vigil/config/config.yaml&lt;/code>&lt;/td>
+ &lt;td>Config file path&lt;/td>
+ &lt;/tr>
+ &lt;tr>
+ &lt;td>&lt;code>--metrics-bind-address&lt;/code>&lt;/td>
+ &lt;td>&lt;code>:8080&lt;/code>&lt;/td>
+ &lt;td>Metrics endpoint&lt;/td>
+ &lt;/tr>
+ &lt;tr>
+ &lt;td>&lt;code>--health-probe-bind-address&lt;/code>&lt;/td>
+ &lt;td>&lt;code>:8081&lt;/code>&lt;/td>
+ &lt;td>Health/readiness probes&lt;/td>
+ &lt;/tr>
+ &lt;tr>
+ &lt;td>&lt;code>--leader-elect&lt;/code>&lt;/td>
+ &lt;td>&lt;code>false&lt;/code>&lt;/td>
+ &lt;td>Enable leader election&lt;/td>
+ &lt;/tr>
+ &lt;tr>
+ &lt;td>&lt;code>--zap-log-level&lt;/code>&lt;/td>
+ &lt;td>(default)&lt;/td>
+ &lt;td>Log verbosity&lt;/td>
+ &lt;/tr>
+ &lt;/tbody>
+&lt;/table>
+&lt;h2 id="configuration-fields">Configuration Fields&lt;/h2>
+&lt;table>
+ &lt;thead>
+ &lt;tr>
+ &lt;th>Field&lt;/th>
+ &lt;th>Type&lt;/th>
+ &lt;th>Default&lt;/th>
+ &lt;th>Description&lt;/th>
+ &lt;/tr>
+ &lt;/thead>
+ &lt;tbody>
+ &lt;tr>
+ &lt;td>&lt;code>taintKey&lt;/code>&lt;/td>
+ &lt;td>string&lt;/td>
+ &lt;td>&lt;code>node.nextdoor.com/initializing&lt;/code>&lt;/td>
+ &lt;td>The taint key to watch and remove&lt;/td>
+ &lt;/tr>
+ &lt;tr>
+ &lt;td>&lt;code>taintEffect&lt;/code>&lt;/td>
+ &lt;td>string&lt;/td>
+ &lt;td>&lt;code>NoSchedule&lt;/code>&lt;/td>
+ &lt;td>The taint effect to match&lt;/td>
+ &lt;/tr>
+ &lt;tr>
+ &lt;td>&lt;code>startupTaintKeys&lt;/code>&lt;/td>
+ &lt;td>[]string&lt;/td>
+ &lt;td>&lt;code>[taintKey]&lt;/code>&lt;/td>
+ &lt;td>All startup taint keys in the cluster&lt;/td>
+ &lt;/tr>
+ &lt;tr>
+ &lt;td>&lt;code>timeoutSeconds&lt;/code>&lt;/td>
+ &lt;td>int&lt;/td>
+ &lt;td>&lt;code>120&lt;/code>&lt;/td>
+ &lt;td>Max wait time before forced taint removal&lt;/td>
+ &lt;/tr>
+ &lt;tr>
+ &lt;td>&lt;code>excludeDaemonSets.byName&lt;/code>&lt;/td>
+ &lt;td>[]object&lt;/td>
+ &lt;td>&lt;code>[]&lt;/code>&lt;/td>
+ &lt;td>DaemonSets to exclude by namespace/name&lt;/td>
+ &lt;/tr>
+ &lt;/tbody>
+&lt;/table></description></item><item><title>Metrics</title><link>https://oss.nextdoor.com/vigil-controller/docs/reference/metrics/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://oss.nextdoor.com/vigil-controller/docs/reference/metrics/</guid><description>&lt;h2 id="metrics">Metrics&lt;/h2>
+&lt;table>
+ &lt;thead>
+ &lt;tr>
+ &lt;th>Metric&lt;/th>
+ &lt;th>Type&lt;/th>
+ &lt;th>Description&lt;/th>
+ &lt;/tr>
+ &lt;/thead>
+ &lt;tbody>
+ &lt;tr>
+ &lt;td>&lt;code>vigil_tainted_nodes&lt;/code>&lt;/td>
+ &lt;td>Gauge&lt;/td>
+ &lt;td>Nodes currently waiting for DaemonSet readiness&lt;/td>
+ &lt;/tr>
+ &lt;tr>
+ &lt;td>&lt;code>vigil_taint_removal_duration_seconds&lt;/code>&lt;/td>
+ &lt;td>Histogram&lt;/td>
+ &lt;td>Time from node creation to taint removal&lt;/td>
+ &lt;/tr>
+ &lt;tr>
+ &lt;td>&lt;code>vigil_successful_removals_total&lt;/code>&lt;/td>
+ &lt;td>Counter&lt;/td>
+ &lt;td>Taint removals after all DaemonSets Ready&lt;/td>
+ &lt;/tr>
+ &lt;tr>
+ &lt;td>&lt;code>vigil_timeout_removals_total&lt;/code>&lt;/td>
+ &lt;td>Counter&lt;/td>
+ &lt;td>Taint removals due to timeout&lt;/td>
+ &lt;/tr>
+ &lt;tr>
+ &lt;td>&lt;code>vigil_expected_daemonsets&lt;/code>&lt;/td>
+ &lt;td>Gauge (by node)&lt;/td>
+ &lt;td>Expected DaemonSets per node&lt;/td>
+ &lt;/tr>
+ &lt;tr>
+ &lt;td>&lt;code>vigil_ready_daemonsets&lt;/code>&lt;/td>
+ &lt;td>Gauge (by node)&lt;/td>
+ &lt;td>Ready DaemonSet pods per node&lt;/td>
+ &lt;/tr>
+ &lt;tr>
+ &lt;td>&lt;code>vigil_reconcile_errors_total&lt;/code>&lt;/td>
+ &lt;td>Counter&lt;/td>
+ &lt;td>Reconciliation errors&lt;/td>
+ &lt;/tr>
+ &lt;tr>
+ &lt;td>&lt;code>vigil_discovery_duration_seconds&lt;/code>&lt;/td>
+ &lt;td>Histogram&lt;/td>
+ &lt;td>Time to evaluate scheduling rules&lt;/td>
+ &lt;/tr>
+ &lt;tr>
+ &lt;td>&lt;code>vigil_timeout_blocking_daemonset_total&lt;/code>&lt;/td>
+ &lt;td>Counter (by ds)&lt;/td>
+ &lt;td>Which DaemonSet blocked at timeout&lt;/td>
+ &lt;/tr>
+ &lt;/tbody>
+&lt;/table>
+&lt;h2 id="alerting">Alerting&lt;/h2>
+&lt;p>Recommended alert rules:&lt;/p></description></item><item><title>Helm Chart</title><link>https://oss.nextdoor.com/vigil-controller/docs/reference/helm-chart/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://oss.nextdoor.com/vigil-controller/docs/reference/helm-chart/</guid><description>&lt;h2 id="installation">Installation&lt;/h2>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>helm repo add vigil-controller https://oss.nextdoor.com/vigil-controller
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>helm repo update
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>helm install vigil vigil-controller/vigil-controller &lt;span style="color:#ae81ff">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#ae81ff">&lt;/span> --namespace vigil-system &lt;span style="color:#ae81ff">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#ae81ff">&lt;/span> --create-namespace
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="key-values">Key Values&lt;/h2>
+&lt;table>
+ &lt;thead>
+ &lt;tr>
+ &lt;th>Value&lt;/th>
+ &lt;th>Default&lt;/th>
+ &lt;th>Description&lt;/th>
+ &lt;/tr>
+ &lt;/thead>
+ &lt;tbody>
+ &lt;tr>
+ &lt;td>&lt;code>replicaCount&lt;/code>&lt;/td>
+ &lt;td>&lt;code>2&lt;/code>&lt;/td>
+ &lt;td>Number of controller replicas&lt;/td>
+ &lt;/tr>
+ &lt;tr>
+ &lt;td>&lt;code>image.repository&lt;/code>&lt;/td>
+ &lt;td>&lt;code>ghcr.io/nextdoor/vigil-controller&lt;/code>&lt;/td>
+ &lt;td>Container image&lt;/td>
+ &lt;/tr>
+ &lt;tr>
+ &lt;td>&lt;code>image.tag&lt;/code>&lt;/td>
+ &lt;td>Chart appVersion&lt;/td>
+ &lt;td>Image tag&lt;/td>
+ &lt;/tr>
+ &lt;tr>
+ &lt;td>&lt;code>controllerManager.leaderElection.enabled&lt;/code>&lt;/td>
+ &lt;td>&lt;code>true&lt;/code>&lt;/td>
+ &lt;td>Leader election&lt;/td>
+ &lt;/tr>
+ &lt;tr>
+ &lt;td>&lt;code>controllerManager.logLevel&lt;/code>&lt;/td>
+ &lt;td>&lt;code>info&lt;/code>&lt;/td>
+ &lt;td>Log level&lt;/td>
+ &lt;/tr>
+ &lt;tr>
+ &lt;td>&lt;code>config.taintKey&lt;/code>&lt;/td>
+ &lt;td>&lt;code>node.nextdoor.com/initializing&lt;/code>&lt;/td>
+ &lt;td>Taint key to watch&lt;/td>
+ &lt;/tr>
+ &lt;tr>
+ &lt;td>&lt;code>config.taintEffect&lt;/code>&lt;/td>
+ &lt;td>&lt;code>NoSchedule&lt;/code>&lt;/td>
+ &lt;td>Taint effect&lt;/td>
+ &lt;/tr>
+ &lt;tr>
+ &lt;td>&lt;code>config.timeoutSeconds&lt;/code>&lt;/td>
+ &lt;td>&lt;code>120&lt;/code>&lt;/td>
+ &lt;td>Timeout before forced removal&lt;/td>
+ &lt;/tr>
+ &lt;tr>
+ &lt;td>&lt;code>config.startupTaintKeys&lt;/code>&lt;/td>
+ &lt;td>See values.yaml&lt;/td>
+ &lt;td>All startup taint keys&lt;/td>
+ &lt;/tr>
+ &lt;tr>
+ &lt;td>&lt;code>serviceMonitor.enabled&lt;/code>&lt;/td>
+ &lt;td>&lt;code>false&lt;/code>&lt;/td>
+ &lt;td>Create ServiceMonitor&lt;/td>
+ &lt;/tr>
+ &lt;tr>
+ &lt;td>&lt;code>resources.requests.cpu&lt;/code>&lt;/td>
+ &lt;td>&lt;code>100m&lt;/code>&lt;/td>
+ &lt;td>CPU request&lt;/td>
+ &lt;/tr>
+ &lt;tr>
+ &lt;td>&lt;code>resources.requests.memory&lt;/code>&lt;/td>
+ &lt;td>&lt;code>64Mi&lt;/code>&lt;/td>
+ &lt;td>Memory request&lt;/td>
+ &lt;/tr>
+ &lt;tr>
+ &lt;td>&lt;code>resources.limits.cpu&lt;/code>&lt;/td>
+ &lt;td>&lt;code>500m&lt;/code>&lt;/td>
+ &lt;td>CPU limit&lt;/td>
+ &lt;/tr>
+ &lt;tr>
+ &lt;td>&lt;code>resources.limits.memory&lt;/code>&lt;/td>
+ &lt;td>&lt;code>128Mi&lt;/code>&lt;/td>
+ &lt;td>Memory limit&lt;/td>
+ &lt;/tr>
+ &lt;/tbody>
+&lt;/table>
+&lt;p>See the full &lt;a href="https://github.com/Nextdoor/vigil-controller/blob/main/charts/vigil-controller/values.yaml">values.yaml&lt;/a> for all options.&lt;/p></description></item></channel></rss>
