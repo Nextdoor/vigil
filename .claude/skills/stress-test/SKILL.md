@@ -16,14 +16,38 @@ checked-in baseline, and optionally update the website benchmarks page.
 
 ## Input
 
-Optional arguments:
+Arguments:
+- `run` — run the stress test (required to actually execute)
 - `--nodes=N` — number of nodes (default: 100 for a quick smoke run)
 - `--rate=N` — node creation rate per second (default: 50)
 - `--full` — run with 10,000 nodes at 10/sec (the full 30-minute suite)
 - `--update-baseline` — update the baseline after a successful run
 - `--skip-website` — do not update the benchmarks page
 
-If no arguments, run with 100 nodes at 50/sec (completes in ~1 minute).
+**If no arguments are provided**, print this usage summary and exit without
+running anything:
+
+```
+Vigil Stress Test — usage:
+
+  /stress-test run                  Run with 100 nodes (quick, ~1 min)
+  /stress-test run --full           Run with 10,000 nodes (~30 min)
+  /stress-test run --nodes=500      Run with custom node count
+  /stress-test run --update-baseline  Update baseline after successful run
+  /stress-test run --skip-website   Skip updating the benchmarks page
+
+Environment overrides (via STRESS_* env vars):
+  STRESS_NODE_COUNT, STRESS_NODE_RATE, STRESS_TIMEOUT_MINUTES,
+  STRESS_CONTROLLER_TIMEOUT_SEC, STRESS_MAX_CONCURRENT_RECONCILES,
+  STRESS_API_CONCURRENCY, STRESS_LOG_LEVEL (0=warn, 1=info, 2=debug)
+
+Files:
+  test/stress/baseline.json          Checked-in baseline for regression detection
+  test/stress/results/latest.json    Output from most recent run (gitignored)
+  website/.../reference/benchmarks.md  Auto-generated benchmarks page
+```
+
+Do NOT proceed to run the test unless the user explicitly includes `run`.
 
 ## Process
 

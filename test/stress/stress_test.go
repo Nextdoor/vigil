@@ -19,6 +19,7 @@ import (
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"go.uber.org/zap/zapcore"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -62,7 +63,18 @@ func TestStress(t *testing.T) {
 	defer cancel()
 
 	// ---------- Start envtest ----------
-	zapOpts := zap.Options{Development: logLevel > 0}
+	// Default to warn level to keep stress test output readable.
+	// STRESS_LOG_LEVEL: 0=warn (default), 1=info, 2+=debug
+	zapOpts := zap.Options{}
+	switch {
+	case logLevel >= 2:
+		zapOpts.Development = true
+	case logLevel == 1:
+		// info level (zap default)
+	default:
+		zapLevel := zapcore.WarnLevel
+		zapOpts.Level = zapLevel
+	}
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zapOpts)))
 
 	scheme := k8sruntime.NewScheme()

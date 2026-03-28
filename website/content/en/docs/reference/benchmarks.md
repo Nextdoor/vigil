@@ -8,17 +8,17 @@ weight: 40
 
 ## Latest Benchmark Results
 
-**Run date:** 2026-03-28T21:10:21Z
-**Git SHA:** `0aa60a2`
+**Run date:** 2026-03-28T21:18:58Z
+**Git SHA:** `44bf06b`
 **Node count:** 100
 
 ### Latency
 
 | Percentile | Latency |
 |------------|---------|
-| p50 | 4,578ms |
-| p95 | 31,229ms |
-| p99 | 31,645ms |
+| p50 | 4,592ms |
+| p95 | 31,227ms |
+| p99 | 31,640ms |
 
 ### Outcomes
 
@@ -32,27 +32,27 @@ weight: 40
 
 | Metric | Value |
 |--------|-------|
-| Peak Heap | 9.9 MB |
-| Final Heap | 8.8 MB |
-| System Memory | 29.1 MB |
-| GC Cycles | 28 |
-| GC CPU Fraction | 0.03% |
+| Peak Heap | 8.9 MB |
+| Final Heap | 7.9 MB |
+| System Memory | 28.4 MB |
+| GC Cycles | 26 |
+| GC CPU Fraction | 0.02% |
 
 ### Memory Over Time
 
 | Elapsed (s) | Heap (MB) | System (MB) | Goroutines | GC Cycles |
 |-------------|-----------|-------------|------------|-----------|
-| 5.0 | 8.3 | 24.9 | 110 | 21 |
-| 10.0 | 8.7 | 29.1 | 93 | 24 |
-| 15.0 | 6.1 | 29.1 | 87 | 26 |
-| 20.0 | 8.4 | 29.1 | 86 | 26 |
-| 25.0 | 7.8 | 29.1 | 82 | 27 |
-| 30.0 | 9.9 | 29.1 | 80 | 27 |
-| 35.0 | 7.7 | 29.1 | 77 | 28 |
-| 40.0 | 7.8 | 29.1 | 76 | 28 |
-| 45.0 | 7.8 | 29.1 | 76 | 28 |
-| 50.0 | 8.3 | 29.1 | 73 | 28 |
-| 55.0 | 8.7 | 29.1 | 70 | 28 |
+| 5.0 | 7.5 | 28.4 | 150 | 20 |
+| 10.0 | 5.6 | 28.4 | 133 | 23 |
+| 15.0 | 6.0 | 28.4 | 127 | 24 |
+| 20.0 | 8.3 | 28.4 | 126 | 24 |
+| 25.0 | 6.7 | 28.4 | 122 | 25 |
+| 30.0 | 8.9 | 28.4 | 120 | 25 |
+| 35.0 | 6.8 | 28.4 | 117 | 26 |
+| 40.0 | 6.9 | 28.4 | 116 | 26 |
+| 45.0 | 6.9 | 28.4 | 116 | 26 |
+| 50.0 | 7.3 | 28.4 | 113 | 26 |
+| 55.0 | 7.8 | 28.4 | 110 | 26 |
 
 ### Test Configuration
 
@@ -61,8 +61,8 @@ weight: 40
 | Node Count | 100 |
 | Node Rate | 50/sec |
 | Controller Timeout | 30s |
-| Max Concurrent Reconciles | 10 |
-| API Concurrency | 50 |
+| Max Concurrent Reconciles | 50 |
+| API Concurrency | 150 |
 | DaemonSet Count | 3 |
 | Total Duration | 56.5s |
 
