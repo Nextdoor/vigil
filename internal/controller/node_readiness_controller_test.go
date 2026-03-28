@@ -20,6 +20,7 @@ import (
 
 	"github.com/nextdoor/vigil/internal/discovery"
 	"github.com/nextdoor/vigil/internal/readiness"
+	"github.com/nextdoor/vigil/internal/taintremoval"
 	"github.com/nextdoor/vigil/pkg/config"
 )
 
@@ -31,12 +32,13 @@ func newTestScheme() *runtime.Scheme {
 
 func newReconciler(cl client.Client, scheme *runtime.Scheme, cfg *config.Config) *NodeReadinessReconciler {
 	return &NodeReadinessReconciler{
-		Client:    cl,
-		Scheme:    scheme,
-		Log:       logr.Discard(),
-		Config:    cfg,
-		Discovery: discovery.New(cl, logr.Discard(), cfg),
-		Readiness: readiness.New(cl, logr.Discard()),
+		Client:       cl,
+		Scheme:       scheme,
+		Log:          logr.Discard(),
+		Config:       cfg,
+		Discovery:    discovery.New(cl, logr.Discard(), cfg),
+		Readiness:    readiness.New(cl, logr.Discard()),
+		TaintRemover: taintremoval.New(cl, cl, logr.Discard()),
 	}
 }
 

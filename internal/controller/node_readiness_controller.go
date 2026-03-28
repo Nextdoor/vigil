@@ -9,6 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/nextdoor/vigil/internal/discovery"
 	"github.com/nextdoor/vigil/internal/readiness"
+	"github.com/nextdoor/vigil/internal/taintremoval"
 	"github.com/nextdoor/vigil/pkg/config"
 	"github.com/nextdoor/vigil/pkg/metrics"
 )
@@ -26,11 +28,13 @@ const requeueDelay = 5 * time.Second
 // removes the taint once all expected DaemonSet pods are Ready.
 type NodeReadinessReconciler struct {
 	client.Client
-	Scheme    *runtime.Scheme
-	Log       logr.Logger
-	Config    *config.Config
-	Discovery *discovery.DaemonSetDiscovery
-	Readiness *readiness.PodReadinessChecker
+	Scheme       *runtime.Scheme
+	Log          logr.Logger
+	Config       *config.Config
+	Discovery    *discovery.DaemonSetDiscovery
+	Readiness    *readiness.PodReadinessChecker
+	TaintRemover *taintremoval.TaintRemover
+	Recorder     record.EventRecorder
 }
 
 // Reconcile handles a single node reconciliation.
@@ -49,8 +53,11 @@ func (r *NodeReadinessReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	log.Info("node has startup taint, evaluating readiness",
 		"taint-key", r.Config.TaintKey,
-		"node-age", node.CreationTimestamp.Time,
+		"node-age", time.Since(node.CreationTimestamp.Time).Round(time.Second),
 	)
+
+	// Check for timeout before doing discovery.
+	timedOut := r.isTimedOut(&node)
 
 	// Discover expected DaemonSets for this node.
 	expectedDS, err := r.Discovery.ExpectedDaemonSets(ctx, &node)
@@ -76,11 +83,32 @@ func (r *NodeReadinessReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			"expected", len(expectedDS),
 			"ready", readyCount,
 		)
-		// TODO: Phase 4 — Taint removal
-		return ctrl.Result{}, nil
+		return r.removeTaint(ctx, &node, "TaintRemoved",
+			fmt.Sprintf("All %d expected DaemonSet pods are Ready", len(expectedDS)))
 	}
 
 	notReady := readiness.NotReadyNames(statuses)
+
+	if timedOut {
+		log.Info("timeout reached, removing taint despite not-ready DaemonSets",
+			"expected", len(expectedDS),
+			"ready", readyCount,
+			"not-ready", notReady,
+			"timeout-seconds", r.Config.TimeoutSeconds,
+		)
+		metrics.TimeoutRemovals.Inc()
+		for _, s := range statuses {
+			if !s.Ready {
+				metrics.TimeoutBlockingDaemonSet.WithLabelValues(
+					s.DaemonSet.Namespace, s.DaemonSet.Name,
+				).Inc()
+			}
+		}
+		return r.removeTaint(ctx, &node, "TaintRemovedTimeout",
+			fmt.Sprintf("Timeout after %ds: %d/%d DaemonSets Ready, blocking: %v",
+				r.Config.TimeoutSeconds, readyCount, len(expectedDS), notReady))
+	}
+
 	log.Info("waiting for DaemonSet pods to become Ready",
 		"expected", len(expectedDS),
 		"ready", readyCount,
@@ -88,6 +116,58 @@ func (r *NodeReadinessReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	)
 
 	return ctrl.Result{RequeueAfter: requeueDelay}, nil
+}
+
+// removeTaint handles taint removal with dry-run support, events, and metrics.
+func (r *NodeReadinessReconciler) removeTaint(
+	ctx context.Context,
+	node *corev1.Node,
+	reason, message string,
+) (ctrl.Result, error) {
+	eventType := corev1.EventTypeNormal
+	if reason == "TaintRemovedTimeout" {
+		eventType = corev1.EventTypeWarning
+	}
+
+	if r.Config.DryRun {
+		r.Log.Info("dry-run: would remove taint",
+			"node", node.Name,
+			"reason", reason,
+			"message", message,
+		)
+		if r.Recorder != nil {
+			r.Recorder.Event(node, eventType, reason+"DryRun", "[dry-run] "+message)
+		}
+		return ctrl.Result{RequeueAfter: requeueDelay}, nil
+	}
+
+	removed, err := r.TaintRemover.RemoveTaint(ctx, node.Name, r.Config.TaintKey)
+	if err != nil {
+		metrics.ReconcileErrors.Inc()
+		return ctrl.Result{}, fmt.Errorf("removing taint: %w", err)
+	}
+
+	if removed {
+		duration := time.Since(node.CreationTimestamp.Time).Seconds()
+		metrics.TaintRemovalDuration.Observe(duration)
+		if reason == "TaintRemoved" {
+			metrics.SuccessfulRemovals.Inc()
+		}
+		if r.Recorder != nil {
+			r.Recorder.Event(node, eventType, reason, message)
+		}
+	}
+
+	return ctrl.Result{}, nil
+}
+
+// isTimedOut returns true if the node has exceeded the configured timeout.
+func (r *NodeReadinessReconciler) isTimedOut(node *corev1.Node) bool {
+	if r.Config.TimeoutSeconds <= 0 {
+		return false
+	}
+	age := time.Since(node.CreationTimestamp.Time)
+	return age >= time.Duration(r.Config.TimeoutSeconds)*time.Second
 }
 
 // SetupWithManager registers the controller with the manager and sets up

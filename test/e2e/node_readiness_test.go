@@ -138,7 +138,7 @@ var _ = Describe("Node Readiness Controller", Ordered, func() {
 				"controller should evaluate pod readiness for expected DaemonSets")
 		})
 
-		It("should report all DaemonSets as Ready", func() {
+		It("should remove the taint after all DaemonSets are Ready", func() {
 			By("Waiting for controller to report all DaemonSet pods as Ready")
 			// KIND DaemonSets (kube-proxy, kindnet) are already running and Ready.
 			Eventually(func() string {
@@ -146,9 +146,31 @@ var _ = Describe("Node Readiness Controller", Ordered, func() {
 			}).WithTimeout(60*time.Second).WithPolling(2*time.Second).Should(
 				ContainSubstring("all expected DaemonSet pods are Ready"),
 				"controller should report all DaemonSet pods as Ready")
+
+			By("Verifying taint was removed from the node")
+			Eventually(func() bool {
+				node, err := clientset.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
+				if err != nil {
+					return false
+				}
+				for _, t := range node.Spec.Taints {
+					if t.Key == testTaintKey {
+						return false
+					}
+				}
+				return true
+			}).WithTimeout(30*time.Second).WithPolling(2*time.Second).Should(BeTrue(),
+				"startup taint should be removed from the node")
+
+			By("Verifying controller logged taint removal")
+			Eventually(func() string {
+				return getDeploymentPodLogs(ctx)
+			}).WithTimeout(10*time.Second).WithPolling(2*time.Second).Should(
+				ContainSubstring("taint removed"),
+				"controller should log taint removal")
 		})
 
-		It("should emit expected and ready DaemonSet metrics", func() {
+		It("should emit taint removal and readiness metrics", func() {
 			By("Fetching /metrics via port-forward")
 			metricsBody := getMetrics(ctx)
 
@@ -159,6 +181,14 @@ var _ = Describe("Node Readiness Controller", Ordered, func() {
 			By("Checking for vigil_ready_daemonsets metric")
 			Expect(metricsBody).To(ContainSubstring("vigil_ready_daemonsets"),
 				"metrics should include vigil_ready_daemonsets gauge")
+
+			By("Checking for vigil_successful_removals_total metric")
+			Expect(metricsBody).To(ContainSubstring("vigil_successful_removals_total"),
+				"metrics should include vigil_successful_removals_total counter")
+
+			By("Checking for vigil_taint_removal_duration_seconds metric")
+			Expect(metricsBody).To(ContainSubstring("vigil_taint_removal_duration_seconds"),
+				"metrics should include vigil_taint_removal_duration_seconds histogram")
 		})
 
 		It("should not crash after evaluating readiness", func() {
@@ -169,9 +199,9 @@ var _ = Describe("Node Readiness Controller", Ordered, func() {
 		})
 
 		AfterAll(func() {
-			By("Cleaning up: removing taint from node")
+			By("Cleaning up: ensuring taint is removed from node")
+			// The controller should have removed it, but clean up just in case.
 			removeTaint(ctx, nodeName, testTaintKey)
-			time.Sleep(2 * time.Second)
 		})
 	})
 
