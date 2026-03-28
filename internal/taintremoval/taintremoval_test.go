@@ -22,9 +22,8 @@ func newScheme() *runtime.Scheme {
 }
 
 func taintedNode(name, taintKey string, extraTaints ...corev1.Taint) *corev1.Node {
-	taints := []corev1.Taint{
-		{Key: taintKey, Effect: corev1.TaintEffectNoSchedule},
-	}
+	taints := make([]corev1.Taint, 0, 1+len(extraTaints))
+	taints = append(taints, corev1.Taint{Key: taintKey, Effect: corev1.TaintEffectNoSchedule})
 	taints = append(taints, extraTaints...)
 	return &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{Name: name},
