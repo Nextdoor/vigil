@@ -18,6 +18,7 @@ import (
 	"github.com/nextdoor/vigil/internal/controller"
 	"github.com/nextdoor/vigil/internal/discovery"
 	"github.com/nextdoor/vigil/internal/inventory"
+	"github.com/nextdoor/vigil/internal/readiness"
 	"github.com/nextdoor/vigil/pkg/config"
 )
 
@@ -89,12 +90,18 @@ func main() {
 		cfg,
 	)
 
+	podReadiness := readiness.New(
+		mgr.GetClient(),
+		ctrl.Log.WithName("readiness"),
+	)
+
 	if err = (&controller.NodeReadinessReconciler{
 		Client:    mgr.GetClient(),
 		Scheme:    mgr.GetScheme(),
 		Log:       ctrl.Log.WithName("node-readiness"),
 		Config:    cfg,
 		Discovery: dsDiscovery,
+		Readiness: podReadiness,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "NodeReadiness")
 		os.Exit(1)

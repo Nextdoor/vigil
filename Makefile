@@ -64,7 +64,7 @@ test: ## Run unit tests with coverage
 
 .PHONY: test-e2e
 test-e2e: ## Run E2E tests (requires Kind cluster)
-	$(GO) test -tags=e2e -timeout=20m -count=1 ./test/e2e/...
+	$(GO) test -tags=e2e -v -timeout=20m -count=1 ./test/e2e/...
 
 .PHONY: cover
 cover: ## Display coverage report
