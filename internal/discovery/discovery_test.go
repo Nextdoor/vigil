@@ -36,10 +36,10 @@ func defaultConfig() *config.Config {
 	}
 }
 
-func newNode(name string, nodeLabels map[string]string, taints []corev1.Taint) *corev1.Node {
+func newNode(nodeLabels map[string]string, taints []corev1.Taint) *corev1.Node {
 	return &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   name,
+			Name:   "node-1",
 			Labels: nodeLabels,
 		},
 		Spec: corev1.NodeSpec{
@@ -108,7 +108,7 @@ func TestExpectedDaemonSets_BasicMatch(t *testing.T) {
 	scheme := newScheme()
 	cfg := defaultConfig()
 
-	node := newNode("node-1", map[string]string{"kubernetes.io/os": "linux"}, []corev1.Taint{
+	node := newNode( map[string]string{"kubernetes.io/os": "linux"}, []corev1.Taint{
 		{Key: "node.example.com/initializing", Effect: corev1.TaintEffectNoSchedule},
 	})
 
@@ -127,7 +127,7 @@ func TestExpectedDaemonSets_NodeSelectorMismatch(t *testing.T) {
 	scheme := newScheme()
 	cfg := defaultConfig()
 
-	node := newNode("node-1", map[string]string{"kubernetes.io/os": "linux"}, nil)
+	node := newNode( map[string]string{"kubernetes.io/os": "linux"}, nil)
 
 	// This DS requires a GPU node.
 	dsGPU := newDaemonSet("kube-system", "gpu-driver",
@@ -151,7 +151,7 @@ func TestExpectedDaemonSets_NodeAffinityMatch(t *testing.T) {
 	scheme := newScheme()
 	cfg := defaultConfig()
 
-	node := newNode("node-1", map[string]string{"topology.kubernetes.io/zone": "us-west-2a"}, nil)
+	node := newNode( map[string]string{"topology.kubernetes.io/zone": "us-west-2a"}, nil)
 
 	dsZoneA := newDaemonSet("monitoring", "zone-monitor",
 		withNodeAffinity(&corev1.NodeSelector{
@@ -199,7 +199,7 @@ func TestExpectedDaemonSets_StartupTaintStripping(t *testing.T) {
 	cfg := defaultConfig()
 
 	// Node has startup taints AND a long-lived dedicated taint.
-	node := newNode("node-1", nil, []corev1.Taint{
+	node := newNode( nil, []corev1.Taint{
 		{Key: "node.example.com/initializing", Effect: corev1.TaintEffectNoSchedule},
 		{Key: "cni.example.io/not-ready", Effect: corev1.TaintEffectNoSchedule},
 		{Key: "dedicated", Value: "gpu", Effect: corev1.TaintEffectNoSchedule},
@@ -246,7 +246,7 @@ func TestExpectedDaemonSets_ExcludeByName(t *testing.T) {
 		{Namespace: "kube-system", Name: "slow-ds"},
 	}
 
-	node := newNode("node-1", nil, nil)
+	node := newNode( nil, nil)
 
 	dsKeep := newDaemonSet("kube-system", "fast-ds")
 	dsExclude := newDaemonSet("kube-system", "slow-ds")
@@ -269,7 +269,7 @@ func TestExpectedDaemonSets_ExcludeByLabel(t *testing.T) {
 		},
 	}
 
-	node := newNode("node-1", nil, nil)
+	node := newNode( nil, nil)
 
 	dsKeep := newDaemonSet("kube-system", "monitored-ds")
 	dsExclude := newDaemonSet("kube-system", "ignored-ds",
@@ -288,7 +288,7 @@ func TestExpectedDaemonSets_ExcludeByLabel(t *testing.T) {
 func TestExpectedDaemonSets_NoDaemonSets(t *testing.T) {
 	scheme := newScheme()
 	cfg := defaultConfig()
-	node := newNode("node-1", nil, nil)
+	node := newNode( nil, nil)
 
 	cl := fake.NewClientBuilder().WithScheme(scheme).Build()
 	d := New(cl, logr.Discard(), cfg)
@@ -304,7 +304,7 @@ func TestExpectedDaemonSets_NoStartupTaintsConfigured(t *testing.T) {
 	cfg.StartupTaintKeys = nil // No startup taints to strip.
 
 	// Node has a taint that the DS doesn't tolerate.
-	node := newNode("node-1", nil, []corev1.Taint{
+	node := newNode( nil, []corev1.Taint{
 		{Key: "node.example.com/initializing", Effect: corev1.TaintEffectNoSchedule},
 	})
 
@@ -351,7 +351,7 @@ func TestSteadyStateTaints_AllStartup(t *testing.T) {
 
 func TestMatchesNodeAffinity_NoAffinityMatchesAll(t *testing.T) {
 	pod := &corev1.Pod{Spec: corev1.PodSpec{}}
-	node := newNode("node-1", map[string]string{"foo": "bar"}, nil)
+	node := newNode( map[string]string{"foo": "bar"}, nil)
 	assert.True(t, matchesNodeAffinity(pod, node))
 }
 
