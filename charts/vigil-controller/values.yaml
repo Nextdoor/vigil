@@ -141,6 +141,12 @@ serviceMonitor:
   # -- Metric relabeling configs
   metricRelabelings: []
 
+podDisruptionBudget:
+  # -- Enable PodDisruptionBudget
+  enabled: true
+  # -- Minimum number of pods that must be available
+  minAvailable: 1
+
 # -- Skip loading the config file (use CLI flags only)
 skipConfig: false
 
@@ -154,5 +160,7 @@ config:
     - "ebs.csi.aws.com/agent-not-ready"
     - "efs.csi.aws.com/agent-not-ready"
   timeoutSeconds: 120
+  dryRun: false
+  maxConcurrentReconciles: 10
   excludeDaemonSets:
     byName: []

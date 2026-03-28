@@ -26,6 +26,9 @@ type Config struct {
 	// DryRun when true logs taint removal decisions without actually removing taints.
 	DryRun bool `mapstructure:"dryRun"`
 
+	// MaxConcurrentReconciles is the number of concurrent reconciliation workers.
+	MaxConcurrentReconciles int `mapstructure:"maxConcurrentReconciles"`
+
 	// ExcludeDaemonSets configures which DaemonSets to exclude from readiness checks.
 	ExcludeDaemonSets ExcludeDaemonSets `mapstructure:"excludeDaemonSets"`
 }
@@ -67,7 +70,8 @@ func NewDefault() *Config {
 		StartupTaintKeys: []string{
 			"node.nextdoor.com/initializing",
 		},
-		TimeoutSeconds: 120,
+		TimeoutSeconds:          120,
+		MaxConcurrentReconciles: 10,
 	}
 }
 

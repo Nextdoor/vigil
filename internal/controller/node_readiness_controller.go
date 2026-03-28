@@ -12,6 +12,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlcontroller "sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -189,10 +190,16 @@ func (r *NodeReadinessReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return fmt.Errorf("setting up pod field indexer: %w", err)
 	}
 
+	maxWorkers := r.Config.MaxConcurrentReconciles
+	if maxWorkers <= 0 {
+		maxWorkers = 10
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1.Node{}).
 		Watches(&corev1.Pod{}, handler.EnqueueRequestsFromMapFunc(r.podToNode)).
 		Named("node-readiness").
+		WithOptions(ctrlcontroller.Options{MaxConcurrentReconciles: maxWorkers}).
 		Complete(r)
 }
 
