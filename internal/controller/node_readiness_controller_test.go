@@ -15,7 +15,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	"github.com/nextdoor/vigil-controller/pkg/config"
+	"github.com/nextdoor/vigil/pkg/config"
 )
 
 func newTestScheme() *runtime.Scheme {

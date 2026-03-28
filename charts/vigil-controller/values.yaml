@@ -3,7 +3,7 @@ replicaCount: 2
 
 image:
   # -- Container image repository
-  repository: ghcr.io/nextdoor/vigil-controller
+  repository: ghcr.io/nextdoor/vigil
   # -- Image pull policy
   pullPolicy: IfNotPresent
   # -- Image tag (defaults to Chart appVersion)

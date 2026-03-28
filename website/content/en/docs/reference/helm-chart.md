@@ -7,9 +7,9 @@ weight: 30
 ## Installation
 
 ```bash
-helm repo add vigil-controller https://oss.nextdoor.com/vigil-controller
+helm repo add vigil https://oss.nextdoor.com/vigil
 helm repo update
-helm install vigil vigil-controller/vigil-controller \
+helm install vigil vigil/vigil-controller \
   --namespace vigil-system \
   --create-namespace
 ```
@@ -19,7 +19,7 @@ helm install vigil vigil-controller/vigil-controller \
 | Value | Default | Description |
 |-------|---------|-------------|
 | `replicaCount` | `2` | Number of controller replicas |
-| `image.repository` | `ghcr.io/nextdoor/vigil-controller` | Container image |
+| `image.repository` | `ghcr.io/nextdoor/vigil` | Container image |
 | `image.tag` | Chart appVersion | Image tag |
 | `controllerManager.leaderElection.enabled` | `true` | Leader election |
 | `controllerManager.logLevel` | `info` | Log level |
@@ -33,4 +33,4 @@ helm install vigil vigil-controller/vigil-controller \
 | `resources.limits.cpu` | `500m` | CPU limit |
 | `resources.limits.memory` | `128Mi` | Memory limit |
 
-See the full [values.yaml](https://github.com/Nextdoor/vigil-controller/blob/main/charts/vigil-controller/values.yaml) for all options.
+See the full [values.yaml](https://github.com/Nextdoor/vigil/blob/main/charts/vigil-controller/values.yaml) for all options.

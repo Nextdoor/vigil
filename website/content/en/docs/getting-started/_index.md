@@ -16,14 +16,14 @@ weight: 10
 ### Add the Helm Repository
 
 ```bash
-helm repo add vigil-controller https://oss.nextdoor.com/vigil-controller
+helm repo add vigil https://oss.nextdoor.com/vigil
 helm repo update
 ```
 
 ### Install
 
 ```bash
-helm install vigil vigil-controller/vigil-controller \
+helm install vigil vigil/vigil-controller \
   --namespace vigil-system \
   --create-namespace \
   --set config.taintKey="node.example.com/initializing" \

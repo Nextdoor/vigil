@@ -1,4 +1,4 @@
-module github.com/nextdoor/vigil-controller/website
+module github.com/nextdoor/vigil/website
 
 go 1.24.0
 
