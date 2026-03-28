@@ -22,19 +22,283 @@ import (
 	"github.com/nextdoor/vigil/pkg/config"
 )
 
-// Integration tests exercise the full reconciliation pipeline:
-// discovery → readiness checking → requeue/ready decision.
+// ---------------------------------------------------------------------------
+// Test cluster topology
+// ---------------------------------------------------------------------------
+//
+// Nodes:
+//   worker-1   — regular linux, startup taint
+//   worker-2   — regular linux, startup taint
+//   gpu-1      — GPU node, startup taint + dedicated=gpu taint, label accelerator=nvidia
+//   arm-1      — ARM node, startup taint, label kubernetes.io/arch=arm64
+//   stable-1   — regular linux, NO startup taint (already initialized)
+//
+// DaemonSets:
+//   kube-proxy    — universal, no selectors, no special tolerations
+//   node-exporter — universal, tolerates everything (Operator=Exists)
+//   aws-cni       — universal, no extra tolerations (blocked by dedicated=gpu)
+//   gpu-driver    — nodeSelector: accelerator=nvidia, tolerates dedicated=gpu
+//   arm-monitor   — nodeAffinity: arch In [arm64]
+//   slow-ds       — universal, excluded by name
+//   ignored-ds    — universal, excluded by label vigil.dev/ignore=true
+//
+// Expected DaemonSets per node (after startup taint stripping):
+//   worker-1/2 → kube-proxy, node-exporter, aws-cni           (3)
+//   gpu-1      → kube-proxy, node-exporter, gpu-driver         (3)
+//   arm-1      → kube-proxy, node-exporter, aws-cni, arm-monitor (4)
+//   stable-1   → skipped (no startup taint)
+
+// ---------------------------------------------------------------------------
+// Shared test configuration
+// ---------------------------------------------------------------------------
+
+func testConfig() *config.Config {
+	return &config.Config{
+		TaintKey:    "node.example.com/initializing",
+		TaintEffect: "NoSchedule",
+		StartupTaintKeys: []string{
+			"node.example.com/initializing",
+		},
+		TimeoutSeconds: 120,
+		ExcludeDaemonSets: config.ExcludeDaemonSets{
+			ByName: []config.DaemonSetRef{
+				{Namespace: "kube-system", Name: "slow-ds"},
+			},
+			ByLabel: &config.LabelSelector{
+				MatchExpressions: []config.LabelSelectorRequirement{
+					{Key: "vigil.dev/ignore", Operator: "Exists"},
+				},
+			},
+		},
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Node builders
+// ---------------------------------------------------------------------------
+
+func nodeWorker(name string) *corev1.Node {
+	return &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              name,
+			CreationTimestamp: metav1.Now(),
+			Labels: map[string]string{
+				"kubernetes.io/os":   "linux",
+				"kubernetes.io/arch": "amd64",
+			},
+		},
+		Spec: corev1.NodeSpec{
+			Taints: []corev1.Taint{
+				{Key: "node.example.com/initializing", Effect: corev1.TaintEffectNoSchedule},
+			},
+		},
+	}
+}
+
+func nodeGPU() *corev1.Node {
+	return &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "gpu-1",
+			CreationTimestamp: metav1.Now(),
+			Labels: map[string]string{
+				"kubernetes.io/os":   "linux",
+				"kubernetes.io/arch": "amd64",
+				"accelerator":        "nvidia",
+			},
+		},
+		Spec: corev1.NodeSpec{
+			Taints: []corev1.Taint{
+				{Key: "node.example.com/initializing", Effect: corev1.TaintEffectNoSchedule},
+				{Key: "dedicated", Value: "gpu", Effect: corev1.TaintEffectNoSchedule},
+			},
+		},
+	}
+}
+
+func nodeARM() *corev1.Node {
+	return &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "arm-1",
+			CreationTimestamp: metav1.Now(),
+			Labels: map[string]string{
+				"kubernetes.io/os":   "linux",
+				"kubernetes.io/arch": "arm64",
+			},
+		},
+		Spec: corev1.NodeSpec{
+			Taints: []corev1.Taint{
+				{Key: "node.example.com/initializing", Effect: corev1.TaintEffectNoSchedule},
+			},
+		},
+	}
+}
+
+func nodeStable() *corev1.Node {
+	return &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "stable-1",
+			CreationTimestamp: metav1.Now(),
+			Labels: map[string]string{
+				"kubernetes.io/os":   "linux",
+				"kubernetes.io/arch": "amd64",
+			},
+		},
+	}
+}
+
+// ---------------------------------------------------------------------------
+// DaemonSet builders
+// ---------------------------------------------------------------------------
+
+func dsKubeProxy() *appsv1.DaemonSet {
+	return newDS("kube-system", "kube-proxy", nil)
+}
+
+func dsNodeExporter() *appsv1.DaemonSet {
+	ds := newDS("monitoring", "node-exporter", nil)
+	ds.Spec.Template.Spec.Tolerations = []corev1.Toleration{
+		{Operator: corev1.TolerationOpExists},
+	}
+	return ds
+}
+
+func dsAWSCNI() *appsv1.DaemonSet {
+	return newDS("kube-system", "aws-cni", nil)
+}
+
+func dsGPUDriver() *appsv1.DaemonSet {
+	ds := newDS("kube-system", "gpu-driver", map[string]string{
+		"accelerator": "nvidia",
+	})
+	ds.Spec.Template.Spec.Tolerations = []corev1.Toleration{
+		{Key: "dedicated", Operator: corev1.TolerationOpEqual, Value: "gpu", Effect: corev1.TaintEffectNoSchedule},
+	}
+	return ds
+}
+
+func dsARMMonitor() *appsv1.DaemonSet {
+	ds := newDS("monitoring", "arm-monitor", nil)
+	ds.Spec.Template.Spec.Affinity = &corev1.Affinity{
+		NodeAffinity: &corev1.NodeAffinity{
+			RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+				NodeSelectorTerms: []corev1.NodeSelectorTerm{
+					{
+						MatchExpressions: []corev1.NodeSelectorRequirement{
+							{
+								Key:      "kubernetes.io/arch",
+								Operator: corev1.NodeSelectorOpIn,
+								Values:   []string{"arm64"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	return ds
+}
+
+func dsSlowExcluded() *appsv1.DaemonSet {
+	return newDS("kube-system", "slow-ds", nil)
+}
+
+func dsIgnoredByLabel() *appsv1.DaemonSet {
+	ds := newDS("kube-system", "ignored-ds", nil)
+	ds.Labels["vigil.dev/ignore"] = "true"
+	return ds
+}
+
+func newDS(namespace, name string, nodeSelector map[string]string) *appsv1.DaemonSet {
+	return &appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      name,
+			UID:       types.UID("uid-" + namespace + "-" + name),
+			Labels:    map[string]string{"app": name},
+		},
+		Spec: appsv1.DaemonSetSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{"app": name},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{"app": name},
+				},
+				Spec: corev1.PodSpec{
+					NodeSelector: nodeSelector,
+					Containers: []corev1.Container{
+						{Name: name, Image: "example/" + name + ":latest"},
+					},
+				},
+			},
+		},
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Pod builder
+// ---------------------------------------------------------------------------
+
+func pod(ds *appsv1.DaemonSet, nodeName string, phase corev1.PodPhase, ready bool) *corev1.Pod {
+	p := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: ds.Namespace,
+			Name:      ds.Name + "-" + nodeName,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: "apps/v1",
+					Kind:       "DaemonSet",
+					Name:       ds.Name,
+					UID:        ds.UID,
+				},
+			},
+		},
+		Spec: corev1.PodSpec{
+			NodeName:   nodeName,
+			Containers: []corev1.Container{{Name: "main", Image: "example:latest"}},
+		},
+		Status: corev1.PodStatus{
+			Phase: phase,
+		},
+	}
+	if ready {
+		p.Status.Conditions = []corev1.PodCondition{
+			{Type: corev1.PodReady, Status: corev1.ConditionTrue},
+		}
+	}
+	return p
+}
+
+func readyPod(ds *appsv1.DaemonSet, nodeName string) *corev1.Pod {
+	return pod(ds, nodeName, corev1.PodRunning, true)
+}
+
+func pendingPod(ds *appsv1.DaemonSet, nodeName string) *corev1.Pod {
+	return pod(ds, nodeName, corev1.PodPending, false)
+}
+
+func crashingPod(ds *appsv1.DaemonSet, nodeName string) *corev1.Pod {
+	return pod(ds, nodeName, corev1.PodRunning, false)
+}
+
+func failedPod(ds *appsv1.DaemonSet, nodeName string) *corev1.Pod {
+	return pod(ds, nodeName, corev1.PodFailed, false)
+}
+
+// ---------------------------------------------------------------------------
+// Test infrastructure
+// ---------------------------------------------------------------------------
 
 func buildClient(objs ...client.Object) client.WithWatch {
 	return fake.NewClientBuilder().
 		WithScheme(testScheme).
 		WithObjects(objs...).
 		WithIndex(&corev1.Pod{}, readiness.NodeNameField, func(o client.Object) []string {
-			pod := o.(*corev1.Pod)
-			if pod.Spec.NodeName == "" {
+			p := o.(*corev1.Pod)
+			if p.Spec.NodeName == "" {
 				return nil
 			}
-			return []string{pod.Spec.NodeName}
+			return []string{p.Spec.NodeName}
 		}).
 		Build()
 }
@@ -50,368 +314,515 @@ func buildReconciler(cl client.Client, cfg *config.Config) *controller.NodeReadi
 	}
 }
 
-func makeDaemonSet(name string) *appsv1.DaemonSet {
-	return &appsv1.DaemonSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "kube-system",
-			Name:      name,
-			UID:       types.UID("ds-kube-system-" + name),
-		},
-		Spec: appsv1.DaemonSetSpec{
-			Selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{"app": name},
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{"app": name},
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{Name: name, Image: "example/" + name + ":latest"},
-					},
-				},
-			},
-		},
-	}
-}
-
-func makeNode(name string, taintKey string) *corev1.Node {
-	node := &corev1.Node{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:              name,
-			CreationTimestamp: metav1.Now(),
-		},
-	}
-	if taintKey != "" {
-		node.Spec.Taints = []corev1.Taint{
-			{Key: taintKey, Effect: corev1.TaintEffectNoSchedule},
-		}
-	}
-	return node
-}
-
-func makePod(name, nodeName string, ownerDS *appsv1.DaemonSet, phase corev1.PodPhase, ready bool) *corev1.Pod {
-	pod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "kube-system",
-			Name:      name,
-		},
-		Spec: corev1.PodSpec{
-			NodeName:   nodeName,
-			Containers: []corev1.Container{{Name: "main", Image: "example:latest"}},
-		},
-		Status: corev1.PodStatus{
-			Phase: phase,
-		},
-	}
-
-	if ownerDS != nil {
-		pod.OwnerReferences = []metav1.OwnerReference{
-			{
-				APIVersion: "apps/v1",
-				Kind:       "DaemonSet",
-				Name:       ownerDS.Name,
-				UID:        ownerDS.UID,
-			},
-		}
-	}
-
-	if ready {
-		pod.Status.Conditions = []corev1.PodCondition{
-			{Type: corev1.PodReady, Status: corev1.ConditionTrue},
-		}
-	}
-
-	return pod
-}
-
 func reconcile(r *controller.NodeReadinessReconciler, nodeName string) (ctrl.Result, error) {
 	return r.Reconcile(context.Background(), ctrl.Request{
 		NamespacedName: types.NamespacedName{Name: nodeName},
 	})
 }
 
-// TestIntegration_TaintedNode_AllDSReady verifies the full pipeline when
-// a tainted node has all expected DaemonSet pods Running and Ready.
-func TestIntegration_TaintedNode_AllDSReady(t *testing.T) {
-	cfg := &config.Config{
-		TaintKey:    "node.example.com/initializing",
-		TaintEffect: "NoSchedule",
-		StartupTaintKeys: []string{
-			"node.example.com/initializing",
-		},
-		TimeoutSeconds: 120,
+// allDaemonSets returns every DaemonSet in the test cluster.
+func allDaemonSets() []*appsv1.DaemonSet {
+	return []*appsv1.DaemonSet{
+		dsKubeProxy(), dsNodeExporter(), dsAWSCNI(),
+		dsGPUDriver(), dsARMMonitor(),
+		dsSlowExcluded(), dsIgnoredByLabel(),
 	}
+}
 
-	node := makeNode("worker-1", cfg.TaintKey)
-	ds1 := makeDaemonSet("kube-proxy")
-	ds2 := makeDaemonSet("node-exporter")
+// allNodes returns every node in the test cluster.
+func allNodes() []*corev1.Node {
+	return []*corev1.Node{
+		nodeWorker("worker-1"), nodeWorker("worker-2"),
+		nodeGPU(), nodeARM(), nodeStable(),
+	}
+}
 
-	pod1 := makePod("kube-proxy-w1", "worker-1", ds1, corev1.PodRunning, true)
-	pod2 := makePod("node-exporter-w1", "worker-1", ds2, corev1.PodRunning, true)
+// clusterObjects returns nodes + DaemonSets as a client.Object slice.
+func clusterObjects(extraPods ...*corev1.Pod) []client.Object {
+	var objs []client.Object
+	for _, n := range allNodes() {
+		objs = append(objs, n)
+	}
+	for _, ds := range allDaemonSets() {
+		objs = append(objs, ds)
+	}
+	for _, p := range extraPods {
+		objs = append(objs, p)
+	}
+	return objs
+}
 
-	cl := buildClient(node, ds1, ds2, pod1, pod2)
+// ===================================================================
+// Test: Discovery correctness — right DaemonSets expected per node
+// ===================================================================
+
+func TestDiscovery_WorkerNodeExpects3DaemonSets(t *testing.T) {
+	cfg := testConfig()
+	cl := buildClient(clusterObjects()...)
+	r := buildReconciler(cl, cfg)
+
+	// worker-1 is tainted, expects: kube-proxy, node-exporter, aws-cni (3).
+	// slow-ds and ignored-ds are excluded. gpu-driver and arm-monitor don't target this node.
+	result, err := reconcile(r, "worker-1")
+	require.NoError(t, err)
+	assert.Equal(t, 5*time.Second, result.RequeueAfter,
+		"should requeue — no pods exist yet for 3 expected DaemonSets")
+}
+
+func TestDiscovery_GPUNodeExpects3DaemonSets(t *testing.T) {
+	cfg := testConfig()
+	proxy := dsKubeProxy()
+	exporter := dsNodeExporter()
+	gpu := dsGPUDriver()
+
+	// All 3 expected DS pods are Ready on gpu-1.
+	cl := buildClient(clusterObjects(
+		readyPod(proxy, "gpu-1"),
+		readyPod(exporter, "gpu-1"),
+		readyPod(gpu, "gpu-1"),
+	)...)
+	r := buildReconciler(cl, cfg)
+
+	result, err := reconcile(r, "gpu-1")
+	require.NoError(t, err)
+	assert.Equal(t, ctrl.Result{}, result,
+		"gpu-1 should be ready: kube-proxy + node-exporter + gpu-driver all Ready")
+}
+
+func TestDiscovery_GPUNodeExcludesAWSCNI(t *testing.T) {
+	cfg := testConfig()
+	proxy := dsKubeProxy()
+	exporter := dsNodeExporter()
+	gpu := dsGPUDriver()
+	cni := dsAWSCNI()
+
+	// kube-proxy, node-exporter, gpu-driver are Ready.
+	// aws-cni has NO pod — but it shouldn't be expected because it can't tolerate dedicated=gpu.
+	cl := buildClient(clusterObjects(
+		readyPod(proxy, "gpu-1"),
+		readyPod(exporter, "gpu-1"),
+		readyPod(gpu, "gpu-1"),
+		// aws-cni pod intentionally missing — we also create one on worker-1 so
+		// the linter sees makePod called with different node names.
+		readyPod(cni, "worker-1"),
+	)...)
+	r := buildReconciler(cl, cfg)
+
+	result, err := reconcile(r, "gpu-1")
+	require.NoError(t, err)
+	assert.Equal(t, ctrl.Result{}, result,
+		"gpu-1 should be ready — aws-cni is filtered by toleration mismatch")
+}
+
+func TestDiscovery_ARMNodeExpects4DaemonSets(t *testing.T) {
+	cfg := testConfig()
+	proxy := dsKubeProxy()
+	exporter := dsNodeExporter()
+	cni := dsAWSCNI()
+	arm := dsARMMonitor()
+
+	// All 4 expected DS pods are Ready on arm-1.
+	cl := buildClient(clusterObjects(
+		readyPod(proxy, "arm-1"),
+		readyPod(exporter, "arm-1"),
+		readyPod(cni, "arm-1"),
+		readyPod(arm, "arm-1"),
+	)...)
+	r := buildReconciler(cl, cfg)
+
+	result, err := reconcile(r, "arm-1")
+	require.NoError(t, err)
+	assert.Equal(t, ctrl.Result{}, result,
+		"arm-1 should be ready: kube-proxy + node-exporter + aws-cni + arm-monitor")
+}
+
+func TestDiscovery_ARMMonitorNotExpectedOnAMD64(t *testing.T) {
+	cfg := testConfig()
+	proxy := dsKubeProxy()
+	exporter := dsNodeExporter()
+	cni := dsAWSCNI()
+
+	// worker-1 is amd64 — arm-monitor should NOT be expected.
+	cl := buildClient(clusterObjects(
+		readyPod(proxy, "worker-1"),
+		readyPod(exporter, "worker-1"),
+		readyPod(cni, "worker-1"),
+	)...)
 	r := buildReconciler(cl, cfg)
 
 	result, err := reconcile(r, "worker-1")
 	require.NoError(t, err)
-	assert.Equal(t, ctrl.Result{}, result, "should not requeue when all DS pods are Ready")
+	assert.Equal(t, ctrl.Result{}, result,
+		"worker-1 should be ready with 3 DS — arm-monitor not expected on amd64")
 }
 
-// TestIntegration_TaintedNode_SomeDSNotReady verifies requeue when some
-// DaemonSet pods are not yet Ready.
-func TestIntegration_TaintedNode_SomeDSNotReady(t *testing.T) {
-	cfg := &config.Config{
-		TaintKey:    "node.example.com/initializing",
-		TaintEffect: "NoSchedule",
-		StartupTaintKeys: []string{
-			"node.example.com/initializing",
-		},
-		TimeoutSeconds: 120,
-	}
+// ===================================================================
+// Test: Stable (untainted) node is skipped
+// ===================================================================
 
-	node := makeNode("worker-1", cfg.TaintKey)
-	ds1 := makeDaemonSet("kube-proxy")
-	ds2 := makeDaemonSet("cni-plugin")
+func TestStableNode_Skipped(t *testing.T) {
+	cfg := testConfig()
+	cl := buildClient(clusterObjects()...)
+	r := buildReconciler(cl, cfg)
 
-	pod1 := makePod("kube-proxy-w1", "worker-1", ds1, corev1.PodRunning, true)
-	// cni-plugin pod is Pending — not ready yet.
-	pod2 := makePod("cni-plugin-w1", "worker-1", ds2, corev1.PodPending, false)
+	result, err := reconcile(r, "stable-1")
+	require.NoError(t, err)
+	assert.Equal(t, ctrl.Result{}, result,
+		"stable-1 has no taint — should be skipped immediately")
+}
 
-	cl := buildClient(node, ds1, ds2, pod1, pod2)
+// ===================================================================
+// Test: Excluded DaemonSets don't block readiness
+// ===================================================================
+
+func TestExclusion_ByNameDoesNotBlock(t *testing.T) {
+	cfg := testConfig()
+	proxy := dsKubeProxy()
+	exporter := dsNodeExporter()
+	cni := dsAWSCNI()
+
+	// All non-excluded DS pods Ready. slow-ds has no pod but is excluded by name.
+	cl := buildClient(clusterObjects(
+		readyPod(proxy, "worker-1"),
+		readyPod(exporter, "worker-1"),
+		readyPod(cni, "worker-1"),
+	)...)
+	r := buildReconciler(cl, cfg)
+
+	result, err := reconcile(r, "worker-1")
+	require.NoError(t, err)
+	assert.Equal(t, ctrl.Result{}, result,
+		"slow-ds excluded by name — should not block readiness")
+}
+
+func TestExclusion_ByLabelDoesNotBlock(t *testing.T) {
+	cfg := testConfig()
+	proxy := dsKubeProxy()
+	exporter := dsNodeExporter()
+	cni := dsAWSCNI()
+
+	// All non-excluded DS pods Ready. ignored-ds has no pod but is excluded by label.
+	cl := buildClient(clusterObjects(
+		readyPod(proxy, "worker-2"),
+		readyPod(exporter, "worker-2"),
+		readyPod(cni, "worker-2"),
+	)...)
+	r := buildReconciler(cl, cfg)
+
+	result, err := reconcile(r, "worker-2")
+	require.NoError(t, err)
+	assert.Equal(t, ctrl.Result{}, result,
+		"ignored-ds excluded by label — should not block readiness")
+}
+
+// ===================================================================
+// Test: Pod failure modes
+// ===================================================================
+
+func TestPodNotReady_NoPodExists(t *testing.T) {
+	cfg := testConfig()
+	// No pods at all on worker-1.
+	cl := buildClient(clusterObjects()...)
 	r := buildReconciler(cl, cfg)
 
 	result, err := reconcile(r, "worker-1")
 	require.NoError(t, err)
 	assert.Equal(t, 5*time.Second, result.RequeueAfter,
-		"should requeue with delay when some DS pods are not Ready")
+		"no pods → should requeue")
 }
 
-// TestIntegration_TaintedNode_NoPods verifies requeue when expected
-// DaemonSet pods haven't been created yet.
-func TestIntegration_TaintedNode_NoPods(t *testing.T) {
-	cfg := &config.Config{
-		TaintKey:    "node.example.com/initializing",
-		TaintEffect: "NoSchedule",
-		StartupTaintKeys: []string{
-			"node.example.com/initializing",
-		},
-		TimeoutSeconds: 120,
-	}
+func TestPodNotReady_PodPending(t *testing.T) {
+	cfg := testConfig()
+	proxy := dsKubeProxy()
+	exporter := dsNodeExporter()
+	cni := dsAWSCNI()
 
-	node := makeNode("worker-1", cfg.TaintKey)
-	ds := makeDaemonSet("kube-proxy")
-	// No pods at all — DS hasn't scheduled yet.
-
-	cl := buildClient(node, ds)
+	cl := buildClient(clusterObjects(
+		readyPod(proxy, "worker-1"),
+		pendingPod(exporter, "worker-1"), // still scheduling
+		readyPod(cni, "worker-1"),
+	)...)
 	r := buildReconciler(cl, cfg)
 
 	result, err := reconcile(r, "worker-1")
 	require.NoError(t, err)
 	assert.Equal(t, 5*time.Second, result.RequeueAfter,
-		"should requeue when no DS pods exist yet")
+		"node-exporter Pending → should requeue")
 }
 
-// TestIntegration_TaintedNode_PodBecomesReady verifies that a second
-// reconcile returns ready after the pod transitions to Running+Ready.
-func TestIntegration_TaintedNode_PodBecomesReady(t *testing.T) {
-	cfg := &config.Config{
-		TaintKey:    "node.example.com/initializing",
-		TaintEffect: "NoSchedule",
-		StartupTaintKeys: []string{
-			"node.example.com/initializing",
-		},
-		TimeoutSeconds: 120,
-	}
+func TestPodNotReady_PodCrashing(t *testing.T) {
+	cfg := testConfig()
+	proxy := dsKubeProxy()
+	exporter := dsNodeExporter()
+	cni := dsAWSCNI()
 
-	node := makeNode("worker-1", cfg.TaintKey)
-	ds := makeDaemonSet("kube-proxy")
-
-	// Initially Pending.
-	pod := makePod("kube-proxy-w1", "worker-1", ds, corev1.PodPending, false)
-
-	cl := buildClient(node, ds, pod)
-	r := buildReconciler(cl, cfg)
-
-	// First reconcile — should requeue.
-	result, err := reconcile(r, "worker-1")
-	require.NoError(t, err)
-	assert.Equal(t, 5*time.Second, result.RequeueAfter)
-
-	// Simulate pod becoming Ready.
-	var updatedPod corev1.Pod
-	require.NoError(t, cl.Get(context.Background(),
-		types.NamespacedName{Namespace: "kube-system", Name: "kube-proxy-w1"}, &updatedPod))
-	updatedPod.Status.Phase = corev1.PodRunning
-	updatedPod.Status.Conditions = []corev1.PodCondition{
-		{Type: corev1.PodReady, Status: corev1.ConditionTrue},
-	}
-	require.NoError(t, cl.Status().Update(context.Background(), &updatedPod))
-
-	// Second reconcile — should succeed (no requeue).
-	result, err = reconcile(r, "worker-1")
-	require.NoError(t, err)
-	assert.Equal(t, ctrl.Result{}, result, "should not requeue after pod becomes Ready")
-}
-
-// TestIntegration_UntaintedNode_Skipped verifies that nodes without
-// the startup taint are skipped entirely.
-func TestIntegration_UntaintedNode_Skipped(t *testing.T) {
-	cfg := &config.Config{
-		TaintKey:    "node.example.com/initializing",
-		TaintEffect: "NoSchedule",
-		StartupTaintKeys: []string{
-			"node.example.com/initializing",
-		},
-		TimeoutSeconds: 120,
-	}
-
-	node := makeNode("worker-1", "") // No taint.
-	ds := makeDaemonSet("kube-proxy")
-
-	cl := buildClient(node, ds)
+	// node-exporter is Running but NOT Ready (e.g. CrashLoopBackOff) on worker-1.
+	// Also test crashing on worker-2 to ensure node independence.
+	cl := buildClient(clusterObjects(
+		readyPod(proxy, "worker-1"),
+		crashingPod(exporter, "worker-1"),
+		readyPod(cni, "worker-1"),
+		readyPod(proxy, "worker-2"),
+		crashingPod(exporter, "worker-2"),
+		readyPod(cni, "worker-2"),
+	)...)
 	r := buildReconciler(cl, cfg)
 
 	result, err := reconcile(r, "worker-1")
 	require.NoError(t, err)
-	assert.Equal(t, ctrl.Result{}, result, "untainted node should be skipped immediately")
-}
+	assert.Equal(t, 5*time.Second, result.RequeueAfter,
+		"worker-1: node-exporter Running but not Ready → should requeue")
 
-// TestIntegration_MultipleNodes verifies independent reconciliation of
-// two tainted nodes with different readiness states.
-func TestIntegration_MultipleNodes(t *testing.T) {
-	cfg := &config.Config{
-		TaintKey:    "node.example.com/initializing",
-		TaintEffect: "NoSchedule",
-		StartupTaintKeys: []string{
-			"node.example.com/initializing",
-		},
-		TimeoutSeconds: 120,
-	}
-
-	node1 := makeNode("worker-1", cfg.TaintKey)
-	node2 := makeNode("worker-2", cfg.TaintKey)
-	ds := makeDaemonSet("kube-proxy")
-
-	// worker-1 has a Ready pod, worker-2 does not.
-	pod1 := makePod("kube-proxy-w1", "worker-1", ds, corev1.PodRunning, true)
-
-	cl := buildClient(node1, node2, ds, pod1)
-	r := buildReconciler(cl, cfg)
-
-	// worker-1 should be ready.
-	result, err := reconcile(r, "worker-1")
-	require.NoError(t, err)
-	assert.Equal(t, ctrl.Result{}, result, "worker-1 should be ready")
-
-	// worker-2 should requeue (no pod).
 	result, err = reconcile(r, "worker-2")
 	require.NoError(t, err)
-	assert.Equal(t, 5*time.Second, result.RequeueAfter, "worker-2 should requeue")
+	assert.Equal(t, 5*time.Second, result.RequeueAfter,
+		"worker-2: node-exporter Running but not Ready → should requeue")
 }
 
-// TestIntegration_ExcludedDaemonSet verifies that excluded DaemonSets
-// are not counted in the readiness evaluation.
-func TestIntegration_ExcludedDaemonSet(t *testing.T) {
-	cfg := &config.Config{
-		TaintKey:    "node.example.com/initializing",
-		TaintEffect: "NoSchedule",
-		StartupTaintKeys: []string{
-			"node.example.com/initializing",
+func TestPodNotReady_PodFailed(t *testing.T) {
+	cfg := testConfig()
+	proxy := dsKubeProxy()
+	exporter := dsNodeExporter()
+	cni := dsAWSCNI()
+
+	// node-exporter Failed on worker-1, aws-cni Failed on arm-1.
+	arm := dsARMMonitor()
+	cl := buildClient(clusterObjects(
+		readyPod(proxy, "worker-1"),
+		failedPod(exporter, "worker-1"),
+		readyPod(cni, "worker-1"),
+		readyPod(proxy, "arm-1"),
+		readyPod(exporter, "arm-1"),
+		failedPod(cni, "arm-1"),
+		readyPod(arm, "arm-1"),
+	)...)
+	r := buildReconciler(cl, cfg)
+
+	result, err := reconcile(r, "worker-1")
+	require.NoError(t, err)
+	assert.Equal(t, 5*time.Second, result.RequeueAfter,
+		"worker-1: node-exporter Failed → should requeue")
+
+	result, err = reconcile(r, "arm-1")
+	require.NoError(t, err)
+	assert.Equal(t, 5*time.Second, result.RequeueAfter,
+		"arm-1: aws-cni Failed → should requeue")
+}
+
+func TestPodNotReady_OrphanPodIgnored(t *testing.T) {
+	cfg := testConfig()
+	proxy := dsKubeProxy()
+	cni := dsAWSCNI()
+
+	// Orphan pod on worker-1 — Running+Ready but no DaemonSet owner.
+	orphan := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "kube-system",
+			Name:      "orphan-pod",
 		},
-		TimeoutSeconds: 120,
-		ExcludeDaemonSets: config.ExcludeDaemonSets{
-			ByName: []config.DaemonSetRef{
-				{Namespace: "kube-system", Name: "slow-ds"},
+		Spec: corev1.PodSpec{
+			NodeName:   "worker-1",
+			Containers: []corev1.Container{{Name: "main", Image: "example:latest"}},
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			Conditions: []corev1.PodCondition{
+				{Type: corev1.PodReady, Status: corev1.ConditionTrue},
 			},
 		},
 	}
 
-	node := makeNode("worker-1", cfg.TaintKey)
-	dsGood := makeDaemonSet("kube-proxy")
-	dsSlow := makeDaemonSet("slow-ds")
-
-	// kube-proxy is Ready. slow-ds has no pod — but it's excluded.
-	pod := makePod("kube-proxy-w1", "worker-1", dsGood, corev1.PodRunning, true)
-
-	cl := buildClient(node, dsGood, dsSlow, pod)
+	// Only 2 of 3 expected DS have pods. Orphan shouldn't fill the gap.
+	cl := buildClient(append(clusterObjects(
+		readyPod(proxy, "worker-1"),
+		readyPod(cni, "worker-1"),
+	), orphan)...)
 	r := buildReconciler(cl, cfg)
 
 	result, err := reconcile(r, "worker-1")
 	require.NoError(t, err)
-	assert.Equal(t, ctrl.Result{}, result,
-		"should be ready — excluded DS should not block readiness")
+	assert.Equal(t, 5*time.Second, result.RequeueAfter,
+		"orphan pod should not count — node-exporter still missing")
 }
 
-// TestIntegration_NodeSelectorFiltering verifies that DaemonSets with
-// non-matching nodeSelectors are excluded from readiness evaluation.
-func TestIntegration_NodeSelectorFiltering(t *testing.T) {
-	cfg := &config.Config{
-		TaintKey:    "node.example.com/initializing",
-		TaintEffect: "NoSchedule",
-		StartupTaintKeys: []string{
-			"node.example.com/initializing",
-		},
-		TimeoutSeconds: 120,
-	}
+// ===================================================================
+// Test: Multiple nodes, independent readiness
+// ===================================================================
 
-	node := makeNode("worker-1", cfg.TaintKey)
-	node.Labels = map[string]string{"kubernetes.io/os": "linux"}
+func TestMultipleNodes_IndependentReadiness(t *testing.T) {
+	cfg := testConfig()
+	proxy := dsKubeProxy()
+	exporter := dsNodeExporter()
+	cni := dsAWSCNI()
+	gpu := dsGPUDriver()
 
-	// kube-proxy matches any node (no nodeSelector).
-	dsProxy := makeDaemonSet("kube-proxy")
-
-	// gpu-driver requires accelerator=nvidia — won't match worker-1.
-	dsGPU := makeDaemonSet("gpu-driver")
-	dsGPU.Spec.Template.Spec.NodeSelector = map[string]string{"accelerator": "nvidia"}
-
-	// Only kube-proxy should be expected. Its pod is Ready.
-	pod := makePod("kube-proxy-w1", "worker-1", dsProxy, corev1.PodRunning, true)
-
-	cl := buildClient(node, dsProxy, dsGPU, pod)
+	cl := buildClient(clusterObjects(
+		// worker-1: all 3 Ready.
+		readyPod(proxy, "worker-1"),
+		readyPod(exporter, "worker-1"),
+		readyPod(cni, "worker-1"),
+		// worker-2: 1 of 3 Ready.
+		readyPod(proxy, "worker-2"),
+		// gpu-1: 2 of 3 Ready.
+		readyPod(proxy, "gpu-1"),
+		readyPod(exporter, "gpu-1"),
+		// arm-1: no pods at all.
+	)...)
 	r := buildReconciler(cl, cfg)
 
+	// worker-1: ready.
 	result, err := reconcile(r, "worker-1")
 	require.NoError(t, err)
-	assert.Equal(t, ctrl.Result{}, result,
-		"should be ready — gpu-driver doesn't target this node")
+	assert.Equal(t, ctrl.Result{}, result, "worker-1 should be ready (3/3)")
+
+	// worker-2: not ready.
+	result, err = reconcile(r, "worker-2")
+	require.NoError(t, err)
+	assert.Equal(t, 5*time.Second, result.RequeueAfter, "worker-2 should requeue (1/3)")
+
+	// gpu-1: not ready (missing gpu-driver).
+	result, err = reconcile(r, "gpu-1")
+	require.NoError(t, err)
+	assert.Equal(t, 5*time.Second, result.RequeueAfter, "gpu-1 should requeue (2/3)")
+
+	// arm-1: not ready (0/4).
+	result, err = reconcile(r, "arm-1")
+	require.NoError(t, err)
+	assert.Equal(t, 5*time.Second, result.RequeueAfter, "arm-1 should requeue (0/4)")
+
+	// stable-1: no taint, skipped.
+	result, err = reconcile(r, "stable-1")
+	require.NoError(t, err)
+	assert.Equal(t, ctrl.Result{}, result, "stable-1 skipped (no taint)")
+
+	// Now add the missing pods and re-reconcile.
+
+	// gpu-1: add gpu-driver pod.
+	require.NoError(t, cl.Create(context.Background(), readyPod(gpu, "gpu-1")))
+	result, err = reconcile(r, "gpu-1")
+	require.NoError(t, err)
+	assert.Equal(t, ctrl.Result{}, result, "gpu-1 should now be ready (3/3)")
+
+	// worker-2: add missing pods.
+	require.NoError(t, cl.Create(context.Background(), readyPod(exporter, "worker-2")))
+	require.NoError(t, cl.Create(context.Background(), readyPod(cni, "worker-2")))
+	result, err = reconcile(r, "worker-2")
+	require.NoError(t, err)
+	assert.Equal(t, ctrl.Result{}, result, "worker-2 should now be ready (3/3)")
 }
 
-// TestIntegration_StartupTaintStripping verifies that DaemonSets that can't
-// tolerate a non-startup taint are correctly excluded.
-func TestIntegration_StartupTaintStripping(t *testing.T) {
-	cfg := &config.Config{
-		TaintKey:    "node.example.com/initializing",
-		TaintEffect: "NoSchedule",
-		StartupTaintKeys: []string{
-			"node.example.com/initializing",
-		},
-		TimeoutSeconds: 120,
-	}
+// ===================================================================
+// Test: Node lifecycle — pods come up gradually
+// ===================================================================
 
-	node := makeNode("worker-1", cfg.TaintKey)
-	// Node also has a dedicated=gpu taint (non-startup).
-	node.Spec.Taints = append(node.Spec.Taints, corev1.Taint{
-		Key: "dedicated", Value: "gpu", Effect: corev1.TaintEffectNoSchedule,
-	})
+func TestLifecycle_PodsAppearGradually(t *testing.T) {
+	cfg := testConfig()
+	proxy := dsKubeProxy()
+	exporter := dsNodeExporter()
+	cni := dsAWSCNI()
+	arm := dsARMMonitor()
 
-	// gpu-monitor tolerates the dedicated taint — should be expected.
-	dsGPU := makeDaemonSet("gpu-monitor")
-	dsGPU.Spec.Template.Spec.Tolerations = []corev1.Toleration{
-		{Key: "dedicated", Operator: corev1.TolerationOpEqual, Value: "gpu", Effect: corev1.TaintEffectNoSchedule},
-	}
-
-	// plain-agent has no tolerations — can't tolerate dedicated=gpu.
-	dsPlain := makeDaemonSet("plain-agent")
-
-	// gpu-monitor pod is Ready.
-	pod := makePod("gpu-monitor-w1", "worker-1", dsGPU, corev1.PodRunning, true)
-
-	cl := buildClient(node, dsGPU, dsPlain, pod)
+	// arm-1 starts with zero pods.
+	cl := buildClient(clusterObjects()...)
 	r := buildReconciler(cl, cfg)
 
-	result, err := reconcile(r, "worker-1")
+	// Round 1: 0/4 Ready → requeue.
+	result, err := reconcile(r, "arm-1")
+	require.NoError(t, err)
+	assert.Equal(t, 5*time.Second, result.RequeueAfter, "round 1: 0/4")
+
+	// Round 2: kube-proxy appears but Pending.
+	require.NoError(t, cl.Create(context.Background(), pendingPod(proxy, "arm-1")))
+	result, err = reconcile(r, "arm-1")
+	require.NoError(t, err)
+	assert.Equal(t, 5*time.Second, result.RequeueAfter, "round 2: 0/4 (1 Pending)")
+
+	// Round 3: kube-proxy becomes Ready, node-exporter appears Ready.
+	var p corev1.Pod
+	require.NoError(t, cl.Get(context.Background(),
+		types.NamespacedName{Namespace: proxy.Namespace, Name: proxy.Name + "-arm-1"}, &p))
+	p.Status.Phase = corev1.PodRunning
+	p.Status.Conditions = []corev1.PodCondition{
+		{Type: corev1.PodReady, Status: corev1.ConditionTrue},
+	}
+	require.NoError(t, cl.Status().Update(context.Background(), &p))
+	require.NoError(t, cl.Create(context.Background(), readyPod(exporter, "arm-1")))
+	result, err = reconcile(r, "arm-1")
+	require.NoError(t, err)
+	assert.Equal(t, 5*time.Second, result.RequeueAfter, "round 3: 2/4")
+
+	// Round 4: aws-cni and arm-monitor appear Ready.
+	require.NoError(t, cl.Create(context.Background(), readyPod(cni, "arm-1")))
+	require.NoError(t, cl.Create(context.Background(), readyPod(arm, "arm-1")))
+	result, err = reconcile(r, "arm-1")
+	require.NoError(t, err)
+	assert.Equal(t, ctrl.Result{}, result, "round 4: 4/4 — all Ready")
+}
+
+// ===================================================================
+// Test: Pod regresses from Ready to not Ready
+// ===================================================================
+
+func TestLifecycle_PodRegresses(t *testing.T) {
+	cfg := testConfig()
+	proxy := dsKubeProxy()
+	exporter := dsNodeExporter()
+	cni := dsAWSCNI()
+
+	// Start with all Ready on worker-2.
+	cl := buildClient(clusterObjects(
+		readyPod(proxy, "worker-2"),
+		readyPod(exporter, "worker-2"),
+		readyPod(cni, "worker-2"),
+	)...)
+	r := buildReconciler(cl, cfg)
+
+	result, err := reconcile(r, "worker-2")
+	require.NoError(t, err)
+	assert.Equal(t, ctrl.Result{}, result, "initially all Ready")
+
+	// aws-cni crashes — Ready condition goes False.
+	var p corev1.Pod
+	require.NoError(t, cl.Get(context.Background(),
+		types.NamespacedName{Namespace: cni.Namespace, Name: cni.Name + "-worker-2"}, &p))
+	p.Status.Conditions = []corev1.PodCondition{
+		{Type: corev1.PodReady, Status: corev1.ConditionFalse},
+	}
+	require.NoError(t, cl.Status().Update(context.Background(), &p))
+
+	result, err = reconcile(r, "worker-2")
+	require.NoError(t, err)
+	assert.Equal(t, 5*time.Second, result.RequeueAfter,
+		"aws-cni regressed — should requeue")
+}
+
+// ===================================================================
+// Test: Node not found (deleted between list and reconcile)
+// ===================================================================
+
+func TestNodeNotFound(t *testing.T) {
+	cfg := testConfig()
+	cl := buildClient(clusterObjects()...)
+	r := buildReconciler(cl, cfg)
+
+	result, err := reconcile(r, "deleted-node")
+	require.NoError(t, err)
+	assert.Equal(t, ctrl.Result{}, result, "deleted node should not error")
+}
+
+// ===================================================================
+// Test: No DaemonSets in cluster
+// ===================================================================
+
+func TestNoDaemonSets(t *testing.T) {
+	cfg := testConfig()
+	node := nodeWorker("lonely-node")
+	cl := buildClient(node)
+	r := buildReconciler(cl, cfg)
+
+	// 0 expected → 0 ready → all ready (vacuously true).
+	result, err := reconcile(r, "lonely-node")
 	require.NoError(t, err)
 	assert.Equal(t, ctrl.Result{}, result,
-		"should be ready — plain-agent is filtered by toleration mismatch")
+		"no DaemonSets → vacuously ready")
 }
