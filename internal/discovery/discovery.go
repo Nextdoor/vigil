@@ -10,8 +10,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 	schedhelper "k8s.io/component-helpers/scheduling/corev1"
+	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/nextdoor/vigil/pkg/config"
@@ -26,9 +26,9 @@ type DaemonSetDiscovery struct {
 }
 
 // New creates a new DaemonSetDiscovery instance.
-func New(client client.Reader, log logr.Logger, cfg *config.Config) *DaemonSetDiscovery {
+func New(cl client.Reader, log logr.Logger, cfg *config.Config) *DaemonSetDiscovery {
 	return &DaemonSetDiscovery{
-		client: client,
+		client: cl,
 		log:    log,
 		config: cfg,
 	}

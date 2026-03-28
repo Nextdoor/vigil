@@ -36,11 +36,11 @@ func defaultConfig() *config.Config {
 	}
 }
 
-func newNode(name string, labels map[string]string, taints []corev1.Taint) *corev1.Node {
+func newNode(name string, nodeLabels map[string]string, taints []corev1.Taint) *corev1.Node {
 	return &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   name,
-			Labels: labels,
+			Labels: nodeLabels,
 		},
 		Spec: corev1.NodeSpec{
 			Taints: taints,
@@ -98,9 +98,9 @@ func withTolerations(tolerations ...corev1.Toleration) func(*appsv1.DaemonSet) {
 	}
 }
 
-func withLabels(labels map[string]string) func(*appsv1.DaemonSet) {
+func withLabels(dsLabels map[string]string) func(*appsv1.DaemonSet) {
 	return func(ds *appsv1.DaemonSet) {
-		ds.ObjectMeta.Labels = labels
+		ds.Labels = dsLabels
 	}
 }
 
