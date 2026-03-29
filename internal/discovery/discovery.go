@@ -83,7 +83,7 @@ func (d *DaemonSetDiscovery) ExpectedDaemonSets(ctx context.Context, node *corev
 		}
 
 		// Check that the DaemonSet tolerates all steady-state taints.
-		if !toleratesSteadyStateTaints(pod, steadyStateTaints) {
+		if !toleratesSteadyStateTaints(d.log, pod, steadyStateTaints) {
 			continue
 		}
 
@@ -134,14 +134,16 @@ func matchesNodeAffinity(pod *corev1.Pod, node *corev1.Node) bool {
 }
 
 // toleratesSteadyStateTaints checks if the pod tolerates all non-startup taints on the node.
-func toleratesSteadyStateTaints(pod *corev1.Pod, taints []corev1.Taint) bool {
+func toleratesSteadyStateTaints(log logr.Logger, pod *corev1.Pod, taints []corev1.Taint) bool {
 	// Pass nil filter to check all taints. The startup taints have already been
 	// stripped from the list, so what remains are long-lived taints that the
 	// DaemonSet must tolerate to run in steady state.
 	_, hasUntolerated := schedhelper.FindMatchingUntoleratedTaint(
+		log,
 		taints,
 		pod.Spec.Tolerations,
 		nil,
+		false,
 	)
 	return !hasUntolerated
 }
