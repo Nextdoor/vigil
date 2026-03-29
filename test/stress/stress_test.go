@@ -123,7 +123,7 @@ func TestStress(t *testing.T) {
 		Discovery:    dsDiscovery,
 		Readiness:    podReadiness,
 		TaintRemover: taintRemover,
-		Recorder:     mgr.GetEventRecorderFor("vigil-stress-test"),
+		Recorder:     mgr.GetEventRecorder("vigil-stress-test"),
 	}).SetupWithManager(mgr))
 
 	dsInventory := inventory.New(mgr.GetClient(), ctrl.Log.WithName("inventory"))

@@ -9,7 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlcontroller "sigs.k8s.io/controller-runtime/pkg/controller"
@@ -35,7 +35,7 @@ type NodeReadinessReconciler struct {
 	Discovery    *discovery.DaemonSetDiscovery
 	Readiness    *readiness.PodReadinessChecker
 	TaintRemover *taintremoval.TaintRemover
-	Recorder     record.EventRecorder
+	Recorder     events.EventRecorder
 
 	// nodeState tracks per-node readiness to suppress redundant log lines.
 	nodeState *nodeState
@@ -188,7 +188,7 @@ func (r *NodeReadinessReconciler) removeTaint(
 			"message", message,
 		)
 		if r.Recorder != nil {
-			r.Recorder.Event(node, eventType, reason+"DryRun", "[dry-run] "+message)
+			r.Recorder.Eventf(node, nil, eventType, reason+"DryRun", "Reconcile", "[dry-run] "+message)
 		}
 		return ctrl.Result{RequeueAfter: requeueDelay}, nil
 	}
@@ -206,7 +206,7 @@ func (r *NodeReadinessReconciler) removeTaint(
 			metrics.SuccessfulRemovals.Inc()
 		}
 		if r.Recorder != nil {
-			r.Recorder.Event(node, eventType, reason, message)
+			r.Recorder.Eventf(node, nil, eventType, reason, "Reconcile", message)
 		}
 	}
 
