@@ -38,6 +38,9 @@ func main() {
 	var metricsAddr string
 	var probeAddr string
 	var enableLeaderElection bool
+	var leaseDuration time.Duration
+	var renewDeadline time.Duration
+	var retryPeriod time.Duration
 
 	flag.StringVar(&configFile, "config", "/etc/vigil/config/config.yaml",
 		"Path to the controller configuration file.")
@@ -47,12 +50,30 @@ func main() {
 		"The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager.")
+	flag.DurationVar(&leaseDuration, "leader-election-lease-duration", 15*time.Second,
+		"Duration that non-leader candidates will wait to force acquire leadership.")
+	flag.DurationVar(&renewDeadline, "leader-election-renew-deadline", 10*time.Second,
+		"Duration the acting leader will retry refreshing leadership before giving up.")
+	flag.DurationVar(&retryPeriod, "leader-election-retry-period", 2*time.Second,
+		"Duration between leader election retry attempts.")
 
 	opts := zap.Options{Development: true}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+
+	// Validate leader election timing constraints
+	if renewDeadline >= leaseDuration {
+		setupLog.Error(nil, "leader-election-renew-deadline must be less than leader-election-lease-duration",
+			"renew-deadline", renewDeadline, "lease-duration", leaseDuration)
+		os.Exit(1)
+	}
+	if retryPeriod >= renewDeadline {
+		setupLog.Error(nil, "leader-election-retry-period must be less than leader-election-renew-deadline",
+			"retry-period", retryPeriod, "renew-deadline", renewDeadline)
+		os.Exit(1)
+	}
 
 	// Load configuration
 	cfg, err := config.Load(configFile)
@@ -82,9 +103,9 @@ func main() {
 		HealthProbeBindAddress:        probeAddr,
 		LeaderElection:                enableLeaderElection,
 		LeaderElectionID:              "vigil-controller.nextdoor.com",
-		LeaseDuration:                 ptr(15 * time.Second),
-		RenewDeadline:                 ptr(10 * time.Second),
-		RetryPeriod:                   ptr(2 * time.Second),
+		LeaseDuration:                 &leaseDuration,
+		RenewDeadline:                 &renewDeadline,
+		RetryPeriod:                   &retryPeriod,
 		LeaderElectionReleaseOnCancel: true,
 	})
 	if err != nil {
@@ -150,5 +171,3 @@ func main() {
 		os.Exit(1)
 	}
 }
-
-func ptr[T any](v T) *T { return &v }

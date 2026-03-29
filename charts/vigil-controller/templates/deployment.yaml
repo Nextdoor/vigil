@@ -46,6 +46,15 @@ spec:
         {{- end }}
         {{- if .Values.controllerManager.leaderElection.enabled }}
         - --leader-elect
+        {{- with .Values.controllerManager.leaderElection.leaseDuration }}
+        - --leader-election-lease-duration={{ . }}
+        {{- end }}
+        {{- with .Values.controllerManager.leaderElection.renewDeadline }}
+        - --leader-election-renew-deadline={{ . }}
+        {{- end }}
+        {{- with .Values.controllerManager.leaderElection.retryPeriod }}
+        - --leader-election-retry-period={{ . }}
+        {{- end }}
         {{- end }}
         - --health-probe-bind-address={{ .Values.controllerManager.healthProbeBindAddress }}
         - --metrics-bind-address={{ .Values.controllerManager.metricsBindAddress }}
