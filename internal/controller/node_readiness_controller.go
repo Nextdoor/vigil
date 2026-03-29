@@ -36,10 +36,23 @@ type NodeReadinessReconciler struct {
 	Readiness    *readiness.PodReadinessChecker
 	TaintRemover *taintremoval.TaintRemover
 	Recorder     record.EventRecorder
+
+	// nodeState tracks per-node readiness to suppress redundant log lines.
+	nodeState *nodeState
+}
+
+// initNodeState lazily initializes the nodeState tracker. This is called
+// automatically by SetupWithManager, but also handles the case where the
+// reconciler is used directly in tests without the manager.
+func (r *NodeReadinessReconciler) initNodeState() {
+	if r.nodeState == nil {
+		r.nodeState = newNodeState()
+	}
 }
 
 // Reconcile handles a single node reconciliation.
 func (r *NodeReadinessReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	r.initNodeState()
 	log := r.Log.WithValues("node", req.NamespacedName)
 
 	var node corev1.Node
@@ -52,10 +65,7 @@ func (r *NodeReadinessReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, nil
 	}
 
-	log.Info("node has startup taint, evaluating readiness",
-		"taint-key", r.Config.TaintKey,
-		"node-age", time.Since(node.CreationTimestamp.Time).Round(time.Second),
-	)
+	nodeAge := time.Since(node.CreationTimestamp.Time).Round(time.Second)
 
 	// Check for timeout before doing discovery.
 	timedOut := r.isTimedOut(&node)
@@ -80,10 +90,12 @@ func (r *NodeReadinessReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	metrics.ReadyDaemonSets.WithLabelValues(node.Name).Set(float64(readyCount))
 
 	if readyCount == len(expectedDS) {
-		log.Info("all expected DaemonSet pods are Ready",
+		log.Info("node ready, removing taint",
 			"expected", len(expectedDS),
 			"ready", readyCount,
+			"node-age", nodeAge,
 		)
+		r.nodeState.remove(node.Name)
 		return r.removeTaint(ctx, &node, "TaintRemoved",
 			fmt.Sprintf("All %d expected DaemonSet pods are Ready", len(expectedDS)))
 	}
@@ -96,6 +108,7 @@ func (r *NodeReadinessReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			"ready", readyCount,
 			"not-ready", notReady,
 			"timeout-seconds", r.Config.TimeoutSeconds,
+			"node-age", nodeAge,
 		)
 		metrics.TimeoutRemovals.Inc()
 		for _, s := range statuses {
@@ -105,16 +118,46 @@ func (r *NodeReadinessReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 				).Inc()
 			}
 		}
+		r.nodeState.remove(node.Name)
 		return r.removeTaint(ctx, &node, "TaintRemovedTimeout",
 			fmt.Sprintf("Timeout after %ds: %d/%d DaemonSets Ready, blocking: %v",
 				r.Config.TimeoutSeconds, readyCount, len(expectedDS), notReady))
 	}
 
-	log.Info("waiting for DaemonSet pods to become Ready",
-		"expected", len(expectedDS),
-		"ready", readyCount,
-		"not-ready", notReady,
-	)
+	// Deduplicate waiting logs: only log at INFO when state changes.
+	first, changed := r.nodeState.observe(node.Name, len(expectedDS), readyCount)
+
+	if first {
+		log.Info("tracking new node with startup taint",
+			"taint-key", r.Config.TaintKey,
+			"expected", len(expectedDS),
+			"ready", readyCount,
+			"not-ready-count", len(notReady),
+			"node-age", nodeAge,
+		)
+		// Full not-ready list at debug level for first observation.
+		log.V(1).Info("not-ready DaemonSets",
+			"not-ready", notReady,
+		)
+	} else if changed {
+		log.Info("DaemonSet readiness changed",
+			"expected", len(expectedDS),
+			"ready", readyCount,
+			"not-ready-count", len(notReady),
+			"node-age", nodeAge,
+		)
+		log.V(1).Info("not-ready DaemonSets",
+			"not-ready", notReady,
+		)
+	} else {
+		// No change — log at debug only to avoid noise.
+		log.V(1).Info("waiting for DaemonSet pods to become Ready",
+			"expected", len(expectedDS),
+			"ready", readyCount,
+			"not-ready", notReady,
+			"node-age", nodeAge,
+		)
+	}
 
 	return ctrl.Result{RequeueAfter: requeueDelay}, nil
 }
@@ -174,6 +217,8 @@ func (r *NodeReadinessReconciler) isTimedOut(node *corev1.Node) bool {
 // SetupWithManager registers the controller with the manager and sets up
 // a field indexer for pod spec.nodeName and watches for pod events.
 func (r *NodeReadinessReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	r.nodeState = newNodeState()
+
 	// Add field indexer for spec.nodeName on Pods.
 	if err := mgr.GetFieldIndexer().IndexField(
 		context.Background(),
