@@ -32,6 +32,8 @@ enableRobotsTxt: true
 taxonomies: {}
 
 params:
+  mermaid:
+    enable: true
   ui:
     navbar_logo: false
     sidebar_menu_compact: true

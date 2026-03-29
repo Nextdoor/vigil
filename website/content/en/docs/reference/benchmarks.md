@@ -67,7 +67,35 @@ The stress test measures three distinct latency phases:
 | GC Cycles | 229 |
 | GC CPU Fraction | 0.03% |
 
-### Memory Over Time
+### Resource Utilization Over Time
+
+#### Heap Memory
+
+```mermaid
+xychart-beta
+    title "Heap Allocation Over Time"
+    x-axis "Elapsed (s)" [5, 40, 75, 110, 145, 180, 215, 250, 285, 320, 355, 390, 425, 460, 495, 530, 565, 600, 635, 670, 705, 740, 775, 810, 845, 880, 915, 950, 985, 1020]
+    y-axis "Heap (MB)" 0 --> 280
+    line [8, 11, 24, 31, 47, 41, 60, 76, 86, 73, 86, 114, 117, 88, 99, 97, 157, 128, 163, 187, 194, 190, 165, 227, 174, 223, 140, 165, 186, 214]
+```
+
+#### Goroutines
+
+```mermaid
+xychart-beta
+    title "Active Goroutines Over Time"
+    x-axis "Elapsed (s)" [5, 40, 75, 110, 145, 180, 215, 250, 285, 320, 355, 390, 425, 460, 495, 530, 565, 600, 635, 670, 705, 740, 775, 810, 845, 880, 915, 950, 985, 1020]
+    y-axis "Goroutines" 0 --> 250
+    line [140, 185, 197, 196, 195, 194, 192, 199, 199, 199, 190, 192, 192, 194, 196, 194, 195, 199, 199, 192, 195, 199, 194, 204, 194, 194, 192, 190, 195, 133]
+```
+
+Memory grows linearly with node count (10 nodes/sec) as the informer cache
+accumulates Node and Pod objects. The sawtooth pattern in heap allocation shows
+the Go garbage collector reclaiming memory between allocation bursts. Goroutine
+count remains stable (~190-200), confirming no goroutine leaks.
+
+<details>
+<summary>Raw data (210 samples)</summary>
 
 | Elapsed (s) | Heap (MB) | System (MB) | Goroutines | GC Cycles |
 |-------------|-----------|-------------|------------|-----------|
@@ -281,6 +309,8 @@ The stress test measures three distinct latency phases:
 | 1,040.0 | 222.1 | 315.2 | 114 | 229 |
 | 1,045.0 | 222.7 | 315.2 | 110 | 229 |
 | 1,050.0 | 222.7 | 315.2 | 110 | 229 |
+
+</details>
 
 ### Test Configuration
 
