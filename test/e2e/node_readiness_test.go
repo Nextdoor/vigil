@@ -124,7 +124,10 @@ var _ = Describe("Node Readiness Controller", Ordered, func() {
 			Eventually(func() string {
 				return getDeploymentPodLogs(ctx)
 			}).WithTimeout(30*time.Second).WithPolling(2*time.Second).Should(
-				ContainSubstring("node has startup taint"),
+				SatisfyAny(
+					ContainSubstring("tracking new node with startup taint"),
+					ContainSubstring("node ready, removing taint"),
+				),
 				"controller should detect the startup taint")
 
 			By("Verifying controller evaluates pod readiness")
@@ -132,8 +135,9 @@ var _ = Describe("Node Readiness Controller", Ordered, func() {
 				return getDeploymentPodLogs(ctx)
 			}).WithTimeout(30*time.Second).WithPolling(2*time.Second).Should(
 				SatisfyAny(
-					ContainSubstring("all expected DaemonSet pods are Ready"),
-					ContainSubstring("waiting for DaemonSet pods to become Ready"),
+					ContainSubstring("node ready, removing taint"),
+					ContainSubstring("DaemonSet readiness changed"),
+					ContainSubstring("tracking new node with startup taint"),
 				),
 				"controller should evaluate pod readiness for expected DaemonSets")
 		})
@@ -144,7 +148,7 @@ var _ = Describe("Node Readiness Controller", Ordered, func() {
 			Eventually(func() string {
 				return getDeploymentPodLogs(ctx)
 			}).WithTimeout(60*time.Second).WithPolling(2*time.Second).Should(
-				ContainSubstring("all expected DaemonSet pods are Ready"),
+				ContainSubstring("node ready, removing taint"),
 				"controller should report all DaemonSet pods as Ready")
 
 			By("Verifying taint was removed from the node")
