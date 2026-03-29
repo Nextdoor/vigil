@@ -85,6 +85,15 @@ controllerManager:
   leaderElection:
     # -- Enable leader election
     enabled: true
+    # -- Duration that non-leader candidates will wait to force acquire leadership.
+    # Shorter values mean faster failover but more API server load.
+    leaseDuration: "15s"
+    # -- Duration the acting leader will retry refreshing leadership before giving up.
+    # Must be less than leaseDuration.
+    renewDeadline: "10s"
+    # -- Duration between leader election retry attempts.
+    # Must be less than renewDeadline.
+    retryPeriod: "2s"
   # -- Log level (debug, info, warn, error)
   logLevel: "info"
   # -- Health probe bind address
