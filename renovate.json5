@@ -79,7 +79,8 @@
       "description": "Pin Docker base image digests",
       "matchManagers": ["dockerfile"],
       "matchPackageNames": ["/golang/", "/alpine/"],
-      "pinDigests": true
+      "pinDigests": true,
+      "automerge": true
     },
     {
       "description": "Critical security patches",
