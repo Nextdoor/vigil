@@ -12,8 +12,6 @@ type nodeState struct {
 type nodeSnapshot struct {
 	readyCount    int
 	expectedCount int
-	// firstSeen is true until the first reconcile has been logged.
-	firstSeen bool
 }
 
 func newNodeState() *nodeState {
