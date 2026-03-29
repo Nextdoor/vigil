@@ -166,8 +166,51 @@ func main() {
 		"max-concurrent-reconciles", cfg.MaxConcurrentReconciles,
 		"leader-election", enableLeaderElection,
 	)
+
+	// Monitor leader election acquisition time when leader election is enabled.
+	// Logs warnings at escalating intervals so operators can detect stalled
+	// lease acquisition during rolling updates (see #21).
+	if enableLeaderElection {
+		go monitorLeaseAcquisition(mgr.Elected(), leaseDuration)
+	}
+
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
+	}
+}
+
+// monitorLeaseAcquisition logs warnings when leader lease acquisition is
+// taking longer than expected. This surfaces leadership gaps caused by rapid
+// rolling updates where multiple ReplicaSet generations churn through lease
+// holders (see issue #21).
+func monitorLeaseAcquisition(elected <-chan struct{}, leaseDuration time.Duration) {
+	leaseLog := ctrl.Log.WithName("leader-election")
+	start := time.Now()
+	warnInterval := 2 * leaseDuration
+	ticker := time.NewTicker(warnInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-elected:
+			elapsed := time.Since(start)
+			if elapsed > warnInterval {
+				leaseLog.Info("leader lease acquired after extended wait",
+					"elapsed", elapsed.Round(time.Millisecond))
+			}
+			return
+		case <-ticker.C:
+			elapsed := time.Since(start)
+			if elapsed > 4*leaseDuration {
+				leaseLog.Error(nil, "leader lease acquisition is critically delayed — no controller is watching nodes",
+					"elapsed", elapsed.Round(time.Millisecond),
+					"lease-duration", leaseDuration)
+			} else {
+				leaseLog.Info("WARNING: leader lease acquisition is taking longer than expected",
+					"elapsed", elapsed.Round(time.Millisecond),
+					"lease-duration", leaseDuration)
+			}
+		}
 	}
 }
