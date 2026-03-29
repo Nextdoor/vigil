@@ -3,9 +3,9 @@ module github.com/nextdoor/vigil
 go 1.24.4
 
 require (
-	k8s.io/api v0.33.0
-	k8s.io/apimachinery v0.33.0
-	k8s.io/client-go v0.33.0
+	k8s.io/api v0.33.10
+	k8s.io/apimachinery v0.33.10
+	k8s.io/client-go v0.33.10
 	sigs.k8s.io/controller-runtime v0.21.0
 )
 
@@ -17,7 +17,7 @@ require (
 	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/zap v1.27.1
-	k8s.io/component-helpers v0.33.0
+	k8s.io/component-helpers v0.33.10
 )
 
 require (
