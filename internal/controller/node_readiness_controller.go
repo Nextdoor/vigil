@@ -139,6 +139,14 @@ func (r *NodeReadinessReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		log.V(1).Info("not-ready DaemonSets",
 			"not-ready", notReady,
 		)
+		// If the node has been around for a while but we're only now seeing
+		// it, it was likely waiting during a leader election gap.
+		if nodeAge > 30*time.Second {
+			metrics.LeadershipCatchupNodes.Inc()
+			log.Info("node was waiting during leadership gap",
+				"node-age", nodeAge,
+			)
+		}
 	} else if changed {
 		log.Info("DaemonSet readiness changed",
 			"expected", len(expectedDS),

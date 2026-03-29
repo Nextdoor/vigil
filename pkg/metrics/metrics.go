@@ -61,6 +61,14 @@ var (
 		Name: "vigil_timeout_blocking_daemonset_total",
 		Help: "Which DaemonSet was not Ready when the timeout fired.",
 	}, []string{"daemonset_namespace", "daemonset_name"})
+
+	// LeadershipCatchupNodes counts nodes that already had the startup taint
+	// when the controller first started reconciling them, indicating they were
+	// waiting during a leader election gap.
+	LeadershipCatchupNodes = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "vigil_leadership_catchup_nodes_total",
+		Help: "Nodes that were already tainted when the controller first observed them after leader election.",
+	})
 )
 
 func init() {
@@ -74,5 +82,6 @@ func init() {
 		ReadyDaemonSets,
 		DiscoveryDuration,
 		TimeoutBlockingDaemonSet,
+		LeadershipCatchupNodes,
 	)
 }
