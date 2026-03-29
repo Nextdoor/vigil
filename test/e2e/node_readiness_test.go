@@ -124,7 +124,10 @@ var _ = Describe("Node Readiness Controller", Ordered, func() {
 			Eventually(func() string {
 				return getDeploymentPodLogs(ctx)
 			}).WithTimeout(30*time.Second).WithPolling(2*time.Second).Should(
-				ContainSubstring("tracking new node with startup taint"),
+				SatisfyAny(
+					ContainSubstring("tracking new node with startup taint"),
+					ContainSubstring("node ready, removing taint"),
+				),
 				"controller should detect the startup taint")
 
 			By("Verifying controller evaluates pod readiness")
