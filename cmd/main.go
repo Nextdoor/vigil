@@ -138,7 +138,7 @@ func main() {
 		Discovery:    dsDiscovery,
 		Readiness:    podReadiness,
 		TaintRemover: taintRemover,
-		Recorder:     mgr.GetEventRecorderFor("vigil-controller"),
+		Recorder:     mgr.GetEventRecorder("vigil-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "NodeReadiness")
 		os.Exit(1)
