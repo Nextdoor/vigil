@@ -357,7 +357,7 @@ func TestMatchesNodeAffinity_NoAffinityMatchesAll(t *testing.T) {
 
 func TestToleratesSteadyStateTaints_NoTaints(t *testing.T) {
 	pod := &corev1.Pod{Spec: corev1.PodSpec{}}
-	assert.True(t, toleratesSteadyStateTaints(pod, nil))
+	assert.True(t, toleratesSteadyStateTaints(logr.Discard(), pod, nil))
 }
 
 func TestBuildLabelSelector_Nil(t *testing.T) {
