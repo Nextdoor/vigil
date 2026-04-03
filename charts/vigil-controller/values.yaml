@@ -69,6 +69,8 @@ readinessProbe:
   initialDelaySeconds: 5
   periodSeconds: 10
 
+# -- Priority class name for the controller pods
+priorityClassName: ""
 # -- Node selector
 nodeSelector: {}
 # -- Tolerations
