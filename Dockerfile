@@ -19,6 +19,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} \
 
 # Runtime image
 FROM gcr.io/distroless/static:nonroot
+LABEL org.opencontainers.image.licenses="Apache-2.0"
 WORKDIR /
 COPY --from=builder /workspace/manager .
 USER 65532:65532

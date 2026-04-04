@@ -1,5 +1,19 @@
 //go:build stress
 
+// Copyright 2026 Nextdoor, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package stress
 
 import (
@@ -16,15 +30,15 @@ import (
 
 // StressTestResults is the top-level JSON schema for stress test output.
 type StressTestResults struct {
-	Timestamp         string            `json:"timestamp"`
-	GitSHA            string            `json:"git_sha"`
-	TestConfig        TestConfig        `json:"test_config"`
-	Latency           LatencyBreakdown  `json:"latency"`
-	Counts            CountResults      `json:"counts"`
-	ProfileDistro     map[string]int    `json:"profile_distribution"`
-	Memory            MemorySummary     `json:"memory"`
-	ResourceSamples   []ResourceSample  `json:"resource_samples"`
-	Duration          DurationResults   `json:"duration"`
+	Timestamp       string           `json:"timestamp"`
+	GitSHA          string           `json:"git_sha"`
+	TestConfig      TestConfig       `json:"test_config"`
+	Latency         LatencyBreakdown `json:"latency"`
+	Counts          CountResults     `json:"counts"`
+	ProfileDistro   map[string]int   `json:"profile_distribution"`
+	Memory          MemorySummary    `json:"memory"`
+	ResourceSamples []ResourceSample `json:"resource_samples"`
+	Duration        DurationResults  `json:"duration"`
 }
 
 // TestConfig captures the parameters used for a stress test run.
@@ -68,7 +82,7 @@ type CountResults struct {
 
 // MemorySummary captures memory statistics at test completion.
 type MemorySummary struct {
-	PeakHeapAllocMB float64 `json:"peak_heap_alloc_mb"`
+	PeakHeapAllocMB  float64 `json:"peak_heap_alloc_mb"`
 	FinalHeapAllocMB float64 `json:"final_heap_alloc_mb"`
 	FinalSysMB       float64 `json:"final_sys_mb"`
 	TotalGCCycles    uint32  `json:"total_gc_cycles"`

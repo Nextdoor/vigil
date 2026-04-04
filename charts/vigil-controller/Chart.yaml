@@ -4,6 +4,7 @@ version: 0.1.0
 appVersion: "main"
 description: Vigil — Node Readiness Controller for DaemonSet-Aware Startup Taints
 type: application
+license: Apache-2.0
 keywords:
   - kubernetes
   - node-readiness

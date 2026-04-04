@@ -37,4 +37,4 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for local development setup.
 
 ## License
 
-Copyright Nextdoor, Inc.
+Copyright 2026 Nextdoor, Inc. Licensed under the [Apache License, Version 2.0](LICENSE).
