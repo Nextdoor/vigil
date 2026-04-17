@@ -39,6 +39,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	"github.com/nextdoor/vigil/internal/cacheopts"
 	"github.com/nextdoor/vigil/internal/controller"
 	"github.com/nextdoor/vigil/internal/discovery"
 	"github.com/nextdoor/vigil/internal/inventory"
@@ -68,9 +69,13 @@ func TestStress(t *testing.T) {
 	maxReconciles := envInt("STRESS_MAX_CONCURRENT_RECONCILES", 50)
 	logLevel := envInt("STRESS_LOG_LEVEL", 0)
 	apiConcurrency := envInt("STRESS_API_CONCURRENCY", 150)
+	backgroundPods := envInt("STRESS_BACKGROUND_PODS", 15000)
+	backgroundPodMinBytes := envInt("STRESS_BACKGROUND_POD_MIN_BYTES", 5*1024)
+	backgroundPodMaxBytes := envInt("STRESS_BACKGROUND_POD_MAX_BYTES", 15*1024)
 
-	t.Logf("Stress test config: nodes=%d rate=%d/s timeout=%dm controller-timeout=%ds workers=%d",
-		nodeCount, nodeRate, timeoutMin, controllerTimeout, maxReconciles)
+	t.Logf("Stress test config: nodes=%d rate=%d/s timeout=%dm controller-timeout=%ds workers=%d bg-pods=%d (%d-%dB)",
+		nodeCount, nodeRate, timeoutMin, controllerTimeout, maxReconciles,
+		backgroundPods, backgroundPodMinBytes, backgroundPodMaxBytes)
 
 	deadline := time.Duration(timeoutMin) * time.Minute
 	ctx, cancel := context.WithTimeout(context.Background(), deadline)
@@ -110,6 +115,7 @@ func TestStress(t *testing.T) {
 		Metrics: metricsserver.Options{
 			BindAddress: "0", // disable HTTP metrics server
 		},
+		Cache:                  cacheopts.New(),
 		HealthProbeBindAddress: "0", // disable health probes
 	})
 	require.NoError(t, err)
@@ -191,6 +197,20 @@ func TestStress(t *testing.T) {
 	t.Logf("Created %d DaemonSets, cached client sees %d", len(daemonSets), len(dsCheck.Items))
 	require.Equal(t, len(daemonSets), len(dsCheck.Items),
 		"cached client should see all DaemonSets")
+
+	// Seed the cluster with non-DS "application" pods so the Pod informer cache
+	// reflects real cluster footprint, not just the tiny pool of DS pods the
+	// controller actually reconciles against.
+	if backgroundPods > 0 {
+		t.Logf("Creating %d background pods (%d-%d bytes each)...",
+			backgroundPods, backgroundPodMinBytes, backgroundPodMaxBytes)
+		bgStart := time.Now()
+		require.NoError(t, createBackgroundPods(ctx, cl, backgroundPods, nodeCount,
+			backgroundPodMinBytes, backgroundPodMaxBytes, apiConcurrency))
+		t.Logf("Created %d background pods in %v", backgroundPods, time.Since(bgStart).Round(time.Second))
+		// Let the informer catch up before we start churn.
+		time.Sleep(5 * time.Second)
+	}
 
 	// ---------- Start resource sampling ----------
 	sampler := NewResourceSampler()
@@ -298,13 +318,16 @@ func TestStress(t *testing.T) {
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 		GitSHA:    gitSHA(),
 		TestConfig: TestConfig{
-			NodeCount:         nodeCount,
-			NodeRate:          nodeRate,
-			TimeoutMinutes:    timeoutMin,
-			ControllerTimeout: controllerTimeout,
-			MaxConcReconciles: maxReconciles,
-			APIConcurrency:    apiConcurrency,
-			DaemonSetCount:    len(daemonSets),
+			NodeCount:             nodeCount,
+			NodeRate:              nodeRate,
+			TimeoutMinutes:        timeoutMin,
+			ControllerTimeout:     controllerTimeout,
+			MaxConcReconciles:     maxReconciles,
+			APIConcurrency:        apiConcurrency,
+			DaemonSetCount:        len(daemonSets),
+			BackgroundPods:        backgroundPods,
+			BackgroundPodMinBytes: backgroundPodMinBytes,
+			BackgroundPodMaxBytes: backgroundPodMaxBytes,
 		},
 		Latency: LatencyBreakdown{
 			EndToEnd: LatencyPercentiles{

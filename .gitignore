@@ -42,3 +42,6 @@ website/node_modules/
 website/public/
 website/resources/
 website/.hugo_build.lock
+
+# Claude Code scheduled-task state
+.claude/scheduled_tasks.lock
