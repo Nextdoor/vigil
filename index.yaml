@@ -2,6 +2,28 @@ apiVersion: v1
 entries:
   vigil-controller:
   - apiVersion: v2
+    appVersion: 0.6.2
+    created: "2026-04-18T02:09:43.438808863Z"
+    description: Vigil — Node Readiness Controller for DaemonSet-Aware Startup Taints
+    digest: 40c94ce61fd28773297bb64465d91142e983ec887e6dc76b04d6812481c386de
+    home: https://github.com/Nextdoor/vigil
+    keywords:
+    - kubernetes
+    - node-readiness
+    - daemonset
+    - karpenter
+    - startup-taints
+    maintainers:
+    - name: Vigil Controller Maintainers
+      url: https://github.com/Nextdoor/vigil
+    name: vigil-controller
+    sources:
+    - https://github.com/Nextdoor/vigil
+    type: application
+    urls:
+    - vigil-controller-0.6.2.tgz
+    version: 0.6.2
+  - apiVersion: v2
     appVersion: 0.6.1
     created: "2026-04-04T22:15:12.467300078Z"
     description: Vigil — Node Readiness Controller for DaemonSet-Aware Startup Taints
@@ -155,4 +177,4 @@ entries:
     urls:
     - vigil-controller-0.1.0.tgz
     version: 0.1.0
-generated: "2026-04-04T22:15:12.467325569Z"
+generated: "2026-04-18T02:09:43.438828099Z"
