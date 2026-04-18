@@ -43,13 +43,16 @@ type StressTestResults struct {
 
 // TestConfig captures the parameters used for a stress test run.
 type TestConfig struct {
-	NodeCount         int `json:"node_count"`
-	NodeRate          int `json:"node_rate"`
-	TimeoutMinutes    int `json:"timeout_minutes"`
-	ControllerTimeout int `json:"controller_timeout_sec"`
-	MaxConcReconciles int `json:"max_concurrent_reconciles"`
-	APIConcurrency    int `json:"api_concurrency"`
-	DaemonSetCount    int `json:"daemonset_count"`
+	NodeCount             int `json:"node_count"`
+	NodeRate              int `json:"node_rate"`
+	TimeoutMinutes        int `json:"timeout_minutes"`
+	ControllerTimeout     int `json:"controller_timeout_sec"`
+	MaxConcReconciles     int `json:"max_concurrent_reconciles"`
+	APIConcurrency        int `json:"api_concurrency"`
+	DaemonSetCount        int `json:"daemonset_count"`
+	BackgroundPods        int `json:"background_pods"`
+	BackgroundPodMinBytes int `json:"background_pod_min_bytes"`
+	BackgroundPodMaxBytes int `json:"background_pod_max_bytes"`
 }
 
 // LatencyBreakdown captures latency percentiles broken into three phases.

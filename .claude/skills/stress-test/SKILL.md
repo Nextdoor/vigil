@@ -39,7 +39,11 @@ Vigil Stress Test — usage:
 Environment overrides (via STRESS_* env vars):
   STRESS_NODE_COUNT, STRESS_NODE_RATE, STRESS_TIMEOUT_MINUTES,
   STRESS_CONTROLLER_TIMEOUT_SEC, STRESS_MAX_CONCURRENT_RECONCILES,
-  STRESS_API_CONCURRENCY, STRESS_LOG_LEVEL (0=warn, 1=info, 2=debug)
+  STRESS_API_CONCURRENCY, STRESS_LOG_LEVEL (0=warn, 1=info, 2=debug),
+  STRESS_BACKGROUND_PODS (default 15000 — non-DS pods that sit in the
+    informer cache, simulating real workloads),
+  STRESS_BACKGROUND_POD_MIN_BYTES (default 5120),
+  STRESS_BACKGROUND_POD_MAX_BYTES (default 15360)
 
 Files:
   test/stress/baseline.json          Checked-in baseline for regression detection
