@@ -76,11 +76,27 @@ func TestReconcile_NodeWithoutTaint(t *testing.T) {
 
 	r := newReconciler(cl, scheme, config.NewDefault())
 
+	// Seed state as if the node was previously tracked; the no-taint path
+	// must clean it up.
+	r.initNodeState()
+	r.nodeState.observe("test-node", 1, 0)
+	metrics.ExpectedDaemonSets.WithLabelValues("test-node").Set(1)
+	metrics.ReadyDaemonSets.WithLabelValues("test-node").Set(0)
+	expectedBefore := promtestutil.CollectAndCount(metrics.ExpectedDaemonSets)
+	readyBefore := promtestutil.CollectAndCount(metrics.ReadyDaemonSets)
+
 	result, err := r.Reconcile(context.Background(), ctrl.Request{
 		NamespacedName: types.NamespacedName{Name: "test-node"},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, ctrl.Result{}, result)
+
+	assert.Equal(t, expectedBefore-1, promtestutil.CollectAndCount(metrics.ExpectedDaemonSets),
+		"expected-daemonsets series should be deleted")
+	assert.Equal(t, readyBefore-1, promtestutil.CollectAndCount(metrics.ReadyDaemonSets),
+		"ready-daemonsets series should be deleted")
+	_, tracked := r.nodeState.nodes["test-node"]
+	assert.False(t, tracked, "nodeState entry should be removed")
 }
 
 func TestReconcile_NodeWithTaint_NoDaemonSets(t *testing.T) {
@@ -416,9 +432,25 @@ func TestReconcile_NodeNotFound(t *testing.T) {
 
 	r := newReconciler(cl, scheme, config.NewDefault())
 
+	// Seed state as if the node was previously tracked; the not-found path
+	// must clean it up.
+	r.initNodeState()
+	r.nodeState.observe("nonexistent", 1, 0)
+	metrics.ExpectedDaemonSets.WithLabelValues("nonexistent").Set(1)
+	metrics.ReadyDaemonSets.WithLabelValues("nonexistent").Set(0)
+	expectedBefore := promtestutil.CollectAndCount(metrics.ExpectedDaemonSets)
+	readyBefore := promtestutil.CollectAndCount(metrics.ReadyDaemonSets)
+
 	result, err := r.Reconcile(context.Background(), ctrl.Request{
 		NamespacedName: types.NamespacedName{Name: "nonexistent"},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, ctrl.Result{}, result)
+
+	assert.Equal(t, expectedBefore-1, promtestutil.CollectAndCount(metrics.ExpectedDaemonSets),
+		"expected-daemonsets series should be deleted")
+	assert.Equal(t, readyBefore-1, promtestutil.CollectAndCount(metrics.ReadyDaemonSets),
+		"ready-daemonsets series should be deleted")
+	_, tracked := r.nodeState.nodes["nonexistent"]
+	assert.False(t, tracked, "nodeState entry should be removed")
 }
