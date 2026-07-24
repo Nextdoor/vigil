@@ -15,6 +15,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"os"
 	"time"
@@ -22,10 +23,14 @@ import (
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	"github.com/go-logr/logr"
+	coordinationv1 "k8s.io/api/coordination/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -38,6 +43,9 @@ import (
 	"github.com/nextdoor/vigil/internal/taintremoval"
 	"github.com/nextdoor/vigil/pkg/config"
 )
+
+// Name of the leader election Lease. The probe reads this same Lease.
+const leaderElectionID = "vigil-controller.nextdoor.com"
 
 var (
 	scheme   = runtime.NewScheme()
@@ -110,6 +118,11 @@ func main() {
 		"max-concurrent-reconciles", cfg.MaxConcurrentReconciles,
 	)
 
+	// Set the lease namespace so the probe and the manager use the same Lease.
+	// POD_NAMESPACE comes from the downward API. If it's empty (local runs)
+	// the manager works out its own namespace and the probe just turns off.
+	leaderElectionNamespace := os.Getenv("POD_NAMESPACE")
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme: scheme,
 		Metrics: metricsserver.Options{
@@ -118,7 +131,8 @@ func main() {
 		Cache:                         cacheopts.New(),
 		HealthProbeBindAddress:        probeAddr,
 		LeaderElection:                enableLeaderElection,
-		LeaderElectionID:              "vigil-controller.nextdoor.com",
+		LeaderElectionID:              leaderElectionID,
+		LeaderElectionNamespace:       leaderElectionNamespace,
 		LeaseDuration:                 &leaseDuration,
 		RenewDeadline:                 &renewDeadline,
 		RetryPeriod:                   &retryPeriod,
@@ -187,7 +201,11 @@ func main() {
 	// Logs warnings at escalating intervals so operators can detect stalled
 	// lease acquisition during rolling updates (see #21).
 	if enableLeaderElection {
-		go monitorLeaseAcquisition(mgr.Elected(), leaseDuration)
+		// A standby never gets elected, so its Elected() channel stays open.
+		// The probe lets it check if another replica holds the lease before
+		// warning. Uses the API reader so we don't need a cache for leases.
+		probe := newLeaseProbe(mgr.GetAPIReader(), leaderElectionNamespace, leaderElectionID, leaseDuration)
+		go monitorLeaseAcquisition(ctrl.Log.WithName("leader-election"), mgr.Elected(), leaseDuration, probe)
 	}
 
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
@@ -196,12 +214,54 @@ func main() {
 	}
 }
 
-// monitorLeaseAcquisition logs warnings when leader lease acquisition is
-// taking longer than expected. This surfaces leadership gaps caused by rapid
-// rolling updates where multiple ReplicaSet generations churn through lease
-// holders (see issue #21).
-func monitorLeaseAcquisition(elected <-chan struct{}, leaseDuration time.Duration) {
-	leaseLog := ctrl.Log.WithName("leader-election")
+// leaseProbe returns the lease holder and whether a leader is currently live.
+// A nil probe turns the check off and the monitor just uses elapsed time.
+type leaseProbe func(ctx context.Context) (holder string, live bool)
+
+// newLeaseProbe reads the lease through the API reader. Returns nil with no
+// namespace (local runs) so we don't read the wrong lease.
+func newLeaseProbe(reader client.Reader, namespace, name string, leaseDuration time.Duration) leaseProbe {
+	if namespace == "" {
+		return nil
+	}
+	key := types.NamespacedName{Namespace: namespace, Name: name}
+	return func(ctx context.Context) (string, bool) {
+		var lease coordinationv1.Lease
+		if err := reader.Get(ctx, key, &lease); err != nil {
+			return "", false
+		}
+		return leaderLeaseLive(&lease, time.Now(), leaseDuration)
+	}
+}
+
+// leaderLeaseLive is true when the lease has a holder and was renewed within
+// the last lease duration. Pure function so it's easy to test.
+func leaderLeaseLive(lease *coordinationv1.Lease, now time.Time, leaseDuration time.Duration) (string, bool) {
+	if lease == nil || lease.Spec.HolderIdentity == nil || *lease.Spec.HolderIdentity == "" {
+		return "", false
+	}
+	if lease.Spec.RenewTime == nil {
+		return "", false
+	}
+	if now.Sub(lease.Spec.RenewTime.Time) >= leaseDuration {
+		return *lease.Spec.HolderIdentity, false
+	}
+	return *lease.Spec.HolderIdentity, true
+}
+
+// monitorLeaseAcquisition warns when this replica takes too long to become
+// leader, which can happen during fast rolling updates (see issue #21).
+//
+// When a probe is set, it skips the warning if another replica already holds
+// the lease. A standby would otherwise warn forever even though the cluster is
+// fine (issue #70). We only escalate to ERROR when no leader is live at all,
+// which is the real stuck case from issue #55.
+func monitorLeaseAcquisition(
+	leaseLog logr.Logger,
+	elected <-chan struct{},
+	leaseDuration time.Duration,
+	probe leaseProbe,
+) {
 	start := time.Now()
 	warnInterval := 2 * leaseDuration
 	ticker := time.NewTicker(warnInterval)
@@ -218,6 +278,21 @@ func monitorLeaseAcquisition(elected <-chan struct{}, leaseDuration time.Duratio
 			return
 		case <-ticker.C:
 			elapsed := time.Since(start)
+
+			// If another replica is holding the lease we're just a standby,
+			// so log at debug and don't warn.
+			if probe != nil {
+				ctx, cancel := context.WithTimeout(context.Background(), leaseDuration)
+				holder, live := probe(ctx)
+				cancel()
+				if live {
+					leaseLog.V(1).Info("standby replica; leader lease held by another replica",
+						"holder", holder,
+						"elapsed", elapsed.Round(time.Millisecond))
+					continue
+				}
+			}
+
 			if elapsed > 4*leaseDuration {
 				leaseLog.Error(nil, "leader lease acquisition is critically delayed — no controller is watching nodes",
 					"elapsed", elapsed.Round(time.Millisecond),
