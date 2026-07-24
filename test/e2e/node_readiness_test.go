@@ -188,17 +188,22 @@ var _ = Describe("Node Readiness Controller", Ordered, func() {
 				"controller should log taint removal")
 		})
 
-		It("should emit taint removal and readiness metrics", func() {
+		It("should emit taint removal metrics and drop per-node gauges", func() {
+			// The per-node gauge series are deleted once the node is no longer
+			// tracked; the cleanup runs on the reconcile triggered by the
+			// removal patch itself, so poll briefly for it to land.
+			By("Checking per-node gauge series are cleaned up after taint removal")
+			Eventually(func() string {
+				return getMetrics(ctx)
+			}).WithTimeout(15*time.Second).WithPolling(2*time.Second).ShouldNot(
+				ContainSubstring(`vigil_expected_daemonsets{node=`),
+				"per-node expected-daemonsets series should be deleted after taint removal")
+
 			By("Fetching /metrics via port-forward")
 			metricsBody := getMetrics(ctx)
 
-			By("Checking for vigil_expected_daemonsets metric")
-			Expect(metricsBody).To(ContainSubstring("vigil_expected_daemonsets"),
-				"metrics should include vigil_expected_daemonsets gauge")
-
-			By("Checking for vigil_ready_daemonsets metric")
-			Expect(metricsBody).To(ContainSubstring("vigil_ready_daemonsets"),
-				"metrics should include vigil_ready_daemonsets gauge")
+			Expect(metricsBody).NotTo(ContainSubstring(`vigil_ready_daemonsets{node=`),
+				"per-node ready-daemonsets series should be deleted after taint removal")
 
 			By("Checking for vigil_successful_removals_total metric")
 			Expect(metricsBody).To(ContainSubstring("vigil_successful_removals_total"),

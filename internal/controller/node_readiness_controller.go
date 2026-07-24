@@ -21,6 +21,7 @@ import (
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
@@ -71,11 +72,20 @@ func (r *NodeReadinessReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	var node corev1.Node
 	if err := r.Get(ctx, req.NamespacedName, &node); err != nil {
+		// Node is gone: stop tracking it.
+		if apierrors.IsNotFound(err) {
+			cleanupNodeMetrics(req.Name)
+			r.nodeState.remove(req.Name)
+		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
 	// Check if the node has the startup taint we're watching.
 	if !hasTaint(&node, r.Config.TaintKey) {
+		// Taint is gone: stop tracking the node. Our own removal patch
+		// triggers a node update event, so this also runs after removals.
+		cleanupNodeMetrics(node.Name)
+		r.nodeState.remove(node.Name)
 		return ctrl.Result{}, nil
 	}
 
@@ -279,6 +289,13 @@ func (r *NodeReadinessReconciler) podToNode(_ context.Context, o client.Object) 
 	return []reconcile.Request{
 		{NamespacedName: types.NamespacedName{Name: pod.Spec.NodeName}},
 	}
+}
+
+// cleanupNodeMetrics drops the per-node metric series for a node that is no
+// longer tracked, keeping cardinality bounded as nodes churn.
+func cleanupNodeMetrics(nodeName string) {
+	metrics.ExpectedDaemonSets.DeleteLabelValues(nodeName)
+	metrics.ReadyDaemonSets.DeleteLabelValues(nodeName)
 }
 
 // hasTaint returns true if the node has a taint with the given key.
