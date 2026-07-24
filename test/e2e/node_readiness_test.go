@@ -121,6 +121,20 @@ var _ = Describe("Node Readiness Controller", Ordered, func() {
 			By("Verifying no restarts over 10 second window")
 			waitAndCheckNoRestarts(ctx, restarts, 10*time.Second)
 		})
+
+		// Runs before any taint is applied, so this is the idle case: no node is
+		// tracked, the per-node vecs are empty and therefore absent from the
+		// exposition. The aggregates must still be scrapeable, otherwise a
+		// dashboard cannot tell an idle vigil from a broken one.
+		It("should expose aggregate DaemonSet gauges while idle", func() {
+			By("Fetching /metrics with no tainted nodes")
+			metricsBody := getMetrics(ctx)
+
+			Expect(metricsBody).To(ContainSubstring("vigil_tracked_expected_daemonsets 0"),
+				"aggregate expected-daemonsets gauge should report 0 while idle")
+			Expect(metricsBody).To(ContainSubstring("vigil_tracked_ready_daemonsets 0"),
+				"aggregate ready-daemonsets gauge should report 0 while idle")
+		})
 	})
 
 	Context("taint detection and readiness evaluation", func() {
@@ -204,6 +218,14 @@ var _ = Describe("Node Readiness Controller", Ordered, func() {
 
 			Expect(metricsBody).NotTo(ContainSubstring(`vigil_ready_daemonsets{node=`),
 				"per-node ready-daemonsets series should be deleted after taint removal")
+
+			By("Checking aggregate gauges survive the per-node cleanup at 0")
+			// The aggregates are unlabeled, so unlike the per-node series they
+			// stay in the exposition once the node is untracked.
+			Expect(metricsBody).To(ContainSubstring("vigil_tracked_expected_daemonsets 0"),
+				"aggregate expected-daemonsets gauge should return to 0, not disappear")
+			Expect(metricsBody).To(ContainSubstring("vigil_tracked_ready_daemonsets 0"),
+				"aggregate ready-daemonsets gauge should return to 0, not disappear")
 
 			By("Checking for vigil_successful_removals_total metric")
 			Expect(metricsBody).To(ContainSubstring("vigil_successful_removals_total"),

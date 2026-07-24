@@ -63,6 +63,21 @@ var (
 		Help: "Number of Ready DaemonSet pods per node.",
 	}, []string{"node"})
 
+	// TrackedExpectedDaemonSets is ExpectedDaemonSets summed across every
+	// tracked node. Unlabeled, so it is exposed from process start rather than
+	// appearing only once a node is tracked — see the note on nodeAggregate.
+	TrackedExpectedDaemonSets = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "vigil_tracked_expected_daemonsets",
+		Help: "Expected DaemonSets summed across all nodes currently waiting for DaemonSet readiness.",
+	})
+
+	// TrackedReadyDaemonSets is ReadyDaemonSets summed across every tracked
+	// node. Unlabeled for the same reason as TrackedExpectedDaemonSets.
+	TrackedReadyDaemonSets = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "vigil_tracked_ready_daemonsets",
+		Help: "Ready DaemonSet pods summed across all nodes currently waiting for DaemonSet readiness.",
+	})
+
 	// DiscoveryDuration tracks the time to evaluate DaemonSet scheduling rules.
 	DiscoveryDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
 		Name:    "vigil_discovery_duration_seconds",
@@ -94,6 +109,8 @@ func init() {
 		ReconcileErrors,
 		ExpectedDaemonSets,
 		ReadyDaemonSets,
+		TrackedExpectedDaemonSets,
+		TrackedReadyDaemonSets,
 		DiscoveryDuration,
 		TimeoutBlockingDaemonSet,
 		LeadershipCatchupNodes,
