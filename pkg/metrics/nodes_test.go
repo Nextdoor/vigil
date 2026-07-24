@@ -68,6 +68,29 @@ func TestAggregateGaugesExposedWhenIdle(t *testing.T) {
 
 	assert.Equal(t, 0.0, promtestutil.ToFloat64(TrackedExpectedDaemonSets))
 	assert.Equal(t, 0.0, promtestutil.ToFloat64(TrackedReadyDaemonSets))
+	assert.Equal(t, 0.0, promtestutil.ToFloat64(TaintedNodes))
+}
+
+func TestTaintedNodesCountsTrackedNodes(t *testing.T) {
+	reset(t)
+
+	SetNodeExpected("node-a", 5)
+	assert.Equal(t, 1.0, promtestutil.ToFloat64(TaintedNodes),
+		"a node becomes counted as soon as its first count is recorded")
+
+	SetNodeReady("node-a", 2)
+	assert.Equal(t, 1.0, promtestutil.ToFloat64(TaintedNodes),
+		"a second update to the same node must not double-count it")
+
+	SetNodeExpected("node-b", 3)
+	SetNodeReady("node-b", 3)
+	assert.Equal(t, 2.0, promtestutil.ToFloat64(TaintedNodes))
+
+	ForgetNode("node-a")
+	assert.Equal(t, 1.0, promtestutil.ToFloat64(TaintedNodes))
+
+	ForgetNode("node-b")
+	assert.Equal(t, 0.0, promtestutil.ToFloat64(TaintedNodes))
 }
 
 func TestAggregateGaugesSumAcrossNodes(t *testing.T) {

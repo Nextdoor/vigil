@@ -33,10 +33,11 @@ Dashboards built on the per-node gauges therefore read **no data** whenever
 nothing is tainted, which is indistinguishable from a broken or absent
 controller.
 
-Use the unlabeled `vigil_tracked_*` aggregates for dashboard panels and alerts.
-They are registered at process start, report `0` while idle, and never drop out
-of the exposition. Reach for the per-node series when drilling into which
-specific node is stuck.
+Use the unlabeled `vigil_tracked_*` aggregates — and `vigil_tainted_nodes`, the
+same aggregate expressed as a node count — for dashboard panels and alerts. They
+are registered at process start, report `0` while idle, and never drop out of the
+exposition. Reach for the per-node series when drilling into which specific node
+is stuck.
 
 ```promql
 # Nodes waiting, and how far along they are — always plots, even when idle.

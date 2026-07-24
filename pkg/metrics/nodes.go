@@ -28,7 +28,8 @@ import "sync"
 // and report 0 while idle.
 //
 // The map is the single source of truth for both, so the aggregates cannot
-// drift from the per-node series they summarize.
+// drift from the per-node series they summarize. It also backs TaintedNodes,
+// which is the same aggregate expressed as a node count.
 type nodeAggregate struct {
 	mu    sync.Mutex
 	nodes map[string]nodeCounts
@@ -87,6 +88,7 @@ func (a *nodeAggregate) publishLocked() {
 		expected += c.expected
 		ready += c.ready
 	}
+	TaintedNodes.Set(float64(len(a.nodes)))
 	TrackedExpectedDaemonSets.Set(float64(expected))
 	TrackedReadyDaemonSets.Set(float64(ready))
 }
