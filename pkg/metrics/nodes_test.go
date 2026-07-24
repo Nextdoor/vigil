@@ -179,11 +179,13 @@ func TestAggregateGaugeExposition(t *testing.T) {
 	SetNodeExpected("node-a", 2)
 	SetNodeReady("node-a", 1)
 
-	expected := `
-# HELP vigil_tracked_expected_daemonsets Expected DaemonSets summed across all nodes currently waiting for DaemonSet readiness.
-# TYPE vigil_tracked_expected_daemonsets gauge
-vigil_tracked_expected_daemonsets 2
-`
+	// Assembled rather than written as one raw string: the HELP line exceeds the
+	// 120-column limit, and the exposition format will not let it wrap.
+	expected := "\n# HELP vigil_tracked_expected_daemonsets Expected DaemonSets summed" +
+		" across all nodes currently waiting for DaemonSet readiness.\n" +
+		"# TYPE vigil_tracked_expected_daemonsets gauge\n" +
+		"vigil_tracked_expected_daemonsets 2\n"
+
 	require.NoError(t, promtestutil.CollectAndCompare(
 		TrackedExpectedDaemonSets, strings.NewReader(expected)))
 }
