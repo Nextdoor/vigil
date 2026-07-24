@@ -68,6 +68,14 @@ spec:
         {{- range .Values.controllerManager.extraArgs }}
         - {{ . }}
         {{- end }}
+        {{- if .Values.controllerManager.leaderElection.enabled }}
+        env:
+        # Lets the controller read its own lease namespace (issue #70).
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        {{- end }}
         ports:
         - name: metrics
           containerPort: {{ .Values.metricsService.port }}
