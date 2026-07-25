@@ -44,10 +44,10 @@ var trackedNodes = &nodeAggregate{nodes: make(map[string]nodeCounts)}
 
 // SetNodeExpected records the expected-DaemonSet count for a tracked node.
 func SetNodeExpected(nodeName string, expected int) {
-	ExpectedDaemonSets.WithLabelValues(nodeName).Set(float64(expected))
-
 	trackedNodes.mu.Lock()
 	defer trackedNodes.mu.Unlock()
+
+	ExpectedDaemonSets.WithLabelValues(nodeName).Set(float64(expected))
 	c := trackedNodes.nodes[nodeName]
 	c.expected = expected
 	trackedNodes.nodes[nodeName] = c
@@ -56,10 +56,10 @@ func SetNodeExpected(nodeName string, expected int) {
 
 // SetNodeReady records the Ready-DaemonSet-pod count for a tracked node.
 func SetNodeReady(nodeName string, ready int) {
-	ReadyDaemonSets.WithLabelValues(nodeName).Set(float64(ready))
-
 	trackedNodes.mu.Lock()
 	defer trackedNodes.mu.Unlock()
+
+	ReadyDaemonSets.WithLabelValues(nodeName).Set(float64(ready))
 	c := trackedNodes.nodes[nodeName]
 	c.ready = ready
 	trackedNodes.nodes[nodeName] = c
@@ -69,11 +69,11 @@ func SetNodeReady(nodeName string, ready int) {
 // ForgetNode drops a node from the per-node series and the aggregates once it
 // is no longer tracked, keeping per-node cardinality bounded under churn.
 func ForgetNode(nodeName string) {
-	ExpectedDaemonSets.DeleteLabelValues(nodeName)
-	ReadyDaemonSets.DeleteLabelValues(nodeName)
-
 	trackedNodes.mu.Lock()
 	defer trackedNodes.mu.Unlock()
+
+	ExpectedDaemonSets.DeleteLabelValues(nodeName)
+	ReadyDaemonSets.DeleteLabelValues(nodeName)
 	delete(trackedNodes.nodes, nodeName)
 	trackedNodes.publishLocked()
 }
