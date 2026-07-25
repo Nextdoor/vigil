@@ -73,11 +73,16 @@ max without (pod, instance) (
 Recommended alert rules:
 
 ```yaml
-# Alert if >10% of taint removals are timeouts
+# Alert if >10% of taint removals are timeouts.
+# rate() is applied per counter, then summed over the replicas: the standby's
+# counters never move, so the sum is the leader's rate.
 - alert: VigilTimeoutRate
   expr: |
-    rate(vigil_timeout_removals_total[15m])
-    / rate(vigil_successful_removals_total[15m] + vigil_timeout_removals_total[15m])
+    sum without (pod, instance) (rate(vigil_timeout_removals_total[15m]))
+    / sum without (pod, instance) (
+        rate(vigil_successful_removals_total[15m])
+        + rate(vigil_timeout_removals_total[15m])
+      )
     > 0.1
   for: 5m
 
