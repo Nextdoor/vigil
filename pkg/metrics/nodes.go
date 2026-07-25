@@ -28,8 +28,16 @@ import "sync"
 // and report 0 while idle.
 //
 // The map is the single source of truth for both, so the aggregates cannot
-// drift from the per-node series they summarize. It also backs TaintedNodes,
-// which is the same aggregate expressed as a node count.
+// drift from the per-node series they summarize. It also backs TaintedNodes:
+// note that a node admitted by TrackNode counts there while contributing 0 to
+// both sums, so the two are not interchangeable during a discovery outage.
+//
+// mu guards the per-node series as well as the map, which serializes writers
+// and keeps the two from diverging permanently under concurrent updates to the
+// same node. It does not make a scrape atomic: Gather collects the vec and the
+// aggregate gauges separately without taking this lock, so a scrape landing
+// mid-update can still see them one update apart. That skew self-corrects on
+// the next write; a permanently wrong aggregate would not.
 type nodeAggregate struct {
 	mu    sync.Mutex
 	nodes map[string]nodeCounts

@@ -37,11 +37,16 @@ Dashboards built on the per-node gauges therefore read **no data** whenever
 nothing is tainted, which is indistinguishable from a broken or absent
 controller.
 
-Use the unlabeled `vigil_tracked_*` aggregates — and `vigil_tainted_nodes`, the
-same aggregate expressed as a node count — for dashboard panels and alerts. They
-are registered at process start, report `0` while idle, and never drop out of the
-exposition. Reach for the per-node series when drilling into which specific node
-is stuck.
+Use the unlabeled `vigil_tracked_*` aggregates and `vigil_tainted_nodes` for
+dashboard panels and alerts. They are registered at process start, report `0`
+while idle, and never drop out of the exposition. Reach for the per-node series
+when drilling into which specific node is stuck.
+
+`vigil_tainted_nodes` counts a node from the moment its taint is seen, which is
+before DaemonSet discovery has reported. A node whose discovery keeps failing
+counts there while contributing `0` to both sums — so read a progress ratio of
+`0` alongside a non-zero node count as "not yet known", not as "no DaemonSets
+are Ready".
 
 The default deployment is two replicas with leader election. Both serve
 `/metrics`, but only the leader ever sets these gauges, so the standby reports a
