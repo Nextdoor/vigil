@@ -16,6 +16,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -80,10 +81,11 @@ func TestReconcile_NodeWithoutTaint(t *testing.T) {
 	// must clean it up.
 	r.initNodeState()
 	r.nodeState.observe("test-node", 1, 0)
-	metrics.ExpectedDaemonSets.WithLabelValues("test-node").Set(1)
-	metrics.ReadyDaemonSets.WithLabelValues("test-node").Set(0)
+	metrics.SetNodeExpected("test-node", 1)
+	metrics.SetNodeReady("test-node", 0)
 	expectedBefore := promtestutil.CollectAndCount(metrics.ExpectedDaemonSets)
 	readyBefore := promtestutil.CollectAndCount(metrics.ReadyDaemonSets)
+	aggExpectedBefore := promtestutil.ToFloat64(metrics.TrackedExpectedDaemonSets)
 
 	result, err := r.Reconcile(context.Background(), ctrl.Request{
 		NamespacedName: types.NamespacedName{Name: "test-node"},
@@ -95,6 +97,8 @@ func TestReconcile_NodeWithoutTaint(t *testing.T) {
 		"expected-daemonsets series should be deleted")
 	assert.Equal(t, readyBefore-1, promtestutil.CollectAndCount(metrics.ReadyDaemonSets),
 		"ready-daemonsets series should be deleted")
+	assert.Equal(t, aggExpectedBefore-1, promtestutil.ToFloat64(metrics.TrackedExpectedDaemonSets),
+		"node should stop contributing to the aggregate gauge")
 	_, tracked := r.nodeState.nodes["test-node"]
 	assert.False(t, tracked, "nodeState entry should be removed")
 }
@@ -264,11 +268,79 @@ func TestReconcile_NodeWithTaint_NotReady_Requeues(t *testing.T) {
 
 	r := newReconciler(cl, scheme, cfg)
 
+	// The gauges are process-global, so measure this node's contribution as a
+	// delta from a known-clean baseline.
+	metrics.ForgetNode("test-node")
+	aggExpectedBefore := promtestutil.ToFloat64(metrics.TrackedExpectedDaemonSets)
+	aggReadyBefore := promtestutil.ToFloat64(metrics.TrackedReadyDaemonSets)
+	t.Cleanup(func() { metrics.ForgetNode("test-node") })
+
 	result, err := r.Reconcile(context.Background(), ctrl.Request{
 		NamespacedName: types.NamespacedName{Name: "test-node"},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, 5*time.Second, result.RequeueAfter)
+
+	assert.Equal(t, aggExpectedBefore+1, promtestutil.ToFloat64(metrics.TrackedExpectedDaemonSets),
+		"a still-tracked node should contribute its expected count to the aggregate")
+	assert.Equal(t, aggReadyBefore, promtestutil.ToFloat64(metrics.TrackedReadyDaemonSets),
+		"a Pending pod should contribute nothing to the ready aggregate")
+}
+
+// failingReader fails DaemonSet discovery. Discovery only ever calls List, so
+// the embedded nil Reader is enough to satisfy the interface.
+type failingReader struct {
+	client.Reader
+}
+
+func (failingReader) List(context.Context, client.ObjectList, ...client.ListOption) error {
+	return errors.New("apiserver unavailable")
+}
+
+// TestReconcile_DiscoveryFails_NodeStillCounted pins why TrackNode runs before
+// discovery: a tainted node vigil cannot evaluate must still show up in
+// vigil_tainted_nodes, rather than leaving the gauge at 0 and looking idle.
+func TestReconcile_DiscoveryFails_NodeStillCounted(t *testing.T) {
+	scheme := newTestScheme()
+	cfg := config.NewDefault()
+
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "test-node",
+			CreationTimestamp: metav1.Now(),
+		},
+		Spec: corev1.NodeSpec{
+			Taints: []corev1.Taint{
+				{Key: cfg.TaintKey, Effect: corev1.TaintEffectNoSchedule},
+			},
+		},
+	}
+
+	cl := fake.NewClientBuilder().WithScheme(scheme).
+		WithObjects(node).
+		WithIndex(&corev1.Pod{}, readiness.NodeNameField, func(o client.Object) []string {
+			return []string{o.(*corev1.Pod).Spec.NodeName}
+		}).
+		Build()
+
+	r := newReconciler(cl, scheme, cfg)
+	r.Discovery = discovery.New(failingReader{}, logr.Discard(), cfg)
+
+	// The gauges are process-global, so measure from a known-clean baseline.
+	metrics.ForgetNode("test-node")
+	taintedBefore := promtestutil.ToFloat64(metrics.TaintedNodes)
+	seriesBefore := promtestutil.CollectAndCount(metrics.ExpectedDaemonSets)
+	t.Cleanup(func() { metrics.ForgetNode("test-node") })
+
+	_, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: types.NamespacedName{Name: "test-node"},
+	})
+	require.Error(t, err, "a discovery failure should surface as a reconcile error")
+
+	assert.Equal(t, taintedBefore+1, promtestutil.ToFloat64(metrics.TaintedNodes),
+		"a tainted node must be counted even when discovery fails")
+	assert.Equal(t, seriesBefore, promtestutil.CollectAndCount(metrics.ExpectedDaemonSets),
+		"no per-node series when the expected count was never learned")
 }
 
 func TestReconcile_CatchupMetric_OldNode(t *testing.T) {
@@ -436,10 +508,11 @@ func TestReconcile_NodeNotFound(t *testing.T) {
 	// must clean it up.
 	r.initNodeState()
 	r.nodeState.observe("nonexistent", 1, 0)
-	metrics.ExpectedDaemonSets.WithLabelValues("nonexistent").Set(1)
-	metrics.ReadyDaemonSets.WithLabelValues("nonexistent").Set(0)
+	metrics.SetNodeExpected("nonexistent", 1)
+	metrics.SetNodeReady("nonexistent", 0)
 	expectedBefore := promtestutil.CollectAndCount(metrics.ExpectedDaemonSets)
 	readyBefore := promtestutil.CollectAndCount(metrics.ReadyDaemonSets)
+	aggExpectedBefore := promtestutil.ToFloat64(metrics.TrackedExpectedDaemonSets)
 
 	result, err := r.Reconcile(context.Background(), ctrl.Request{
 		NamespacedName: types.NamespacedName{Name: "nonexistent"},
@@ -451,6 +524,8 @@ func TestReconcile_NodeNotFound(t *testing.T) {
 		"expected-daemonsets series should be deleted")
 	assert.Equal(t, readyBefore-1, promtestutil.CollectAndCount(metrics.ReadyDaemonSets),
 		"ready-daemonsets series should be deleted")
+	assert.Equal(t, aggExpectedBefore-1, promtestutil.ToFloat64(metrics.TrackedExpectedDaemonSets),
+		"node should stop contributing to the aggregate gauge")
 	_, tracked := r.nodeState.nodes["nonexistent"]
 	assert.False(t, tracked, "nodeState entry should be removed")
 }

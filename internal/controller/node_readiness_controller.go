@@ -74,7 +74,7 @@ func (r *NodeReadinessReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if err := r.Get(ctx, req.NamespacedName, &node); err != nil {
 		// Node is gone: stop tracking it.
 		if apierrors.IsNotFound(err) {
-			cleanupNodeMetrics(req.Name)
+			metrics.ForgetNode(req.Name)
 			r.nodeState.remove(req.Name)
 		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -84,10 +84,14 @@ func (r *NodeReadinessReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if !hasTaint(&node, r.Config.TaintKey) {
 		// Taint is gone: stop tracking the node. Our own removal patch
 		// triggers a node update event, so this also runs after removals.
-		cleanupNodeMetrics(node.Name)
+		metrics.ForgetNode(node.Name)
 		r.nodeState.remove(node.Name)
 		return ctrl.Result{}, nil
 	}
+
+	// Count the node as waiting now: discovery below can fail, and a tainted
+	// node vigil cannot evaluate must not read as no node at all.
+	metrics.TrackNode(node.Name)
 
 	nodeAge := time.Since(node.CreationTimestamp.Time).Round(time.Second)
 
@@ -101,7 +105,7 @@ func (r *NodeReadinessReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, fmt.Errorf("discovering expected daemonsets: %w", err)
 	}
 
-	metrics.ExpectedDaemonSets.WithLabelValues(node.Name).Set(float64(len(expectedDS)))
+	metrics.SetNodeExpected(node.Name, len(expectedDS))
 
 	// Check pod readiness for each expected DaemonSet.
 	statuses, err := r.Readiness.CheckNode(ctx, node.Name, expectedDS)
@@ -111,7 +115,7 @@ func (r *NodeReadinessReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	readyCount := readiness.CountReady(statuses)
-	metrics.ReadyDaemonSets.WithLabelValues(node.Name).Set(float64(readyCount))
+	metrics.SetNodeReady(node.Name, readyCount)
 
 	if readyCount == len(expectedDS) {
 		log.Info("node ready, removing taint",
@@ -289,13 +293,6 @@ func (r *NodeReadinessReconciler) podToNode(_ context.Context, o client.Object) 
 	return []reconcile.Request{
 		{NamespacedName: types.NamespacedName{Name: pod.Spec.NodeName}},
 	}
-}
-
-// cleanupNodeMetrics drops the per-node metric series for a node that is no
-// longer tracked, keeping cardinality bounded as nodes churn.
-func cleanupNodeMetrics(nodeName string) {
-	metrics.ExpectedDaemonSets.DeleteLabelValues(nodeName)
-	metrics.ReadyDaemonSets.DeleteLabelValues(nodeName)
 }
 
 // hasTaint returns true if the node has a taint with the given key.
