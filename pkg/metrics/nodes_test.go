@@ -93,6 +93,37 @@ func TestTaintedNodesCountsTrackedNodes(t *testing.T) {
 	assert.Equal(t, 0.0, promtestutil.ToFloat64(TaintedNodes))
 }
 
+// TestTrackNodeCountsNodeBeforeDiscovery covers the discovery-failure window:
+// the reconciler admits the node, then bails out before either count is known.
+func TestTrackNodeCountsNodeBeforeDiscovery(t *testing.T) {
+	reset(t)
+
+	TrackNode("node-a")
+
+	assert.Equal(t, 1.0, promtestutil.ToFloat64(TaintedNodes),
+		"a tainted node must be counted before its DaemonSet counts are known")
+	assert.Equal(t, 0.0, promtestutil.ToFloat64(TrackedExpectedDaemonSets))
+	assert.Equal(t, 0.0, promtestutil.ToFloat64(TrackedReadyDaemonSets))
+	assert.Equal(t, 0, promtestutil.CollectAndCount(ExpectedDaemonSets),
+		"no per-node series until discovery reports a count")
+	assert.Equal(t, 0, promtestutil.CollectAndCount(ReadyDaemonSets))
+}
+
+func TestTrackNodeKeepsExistingCounts(t *testing.T) {
+	reset(t)
+
+	SetNodeExpected("node-a", 5)
+	SetNodeReady("node-a", 3)
+
+	// Every reconcile of a still-tainted node calls TrackNode again.
+	TrackNode("node-a")
+
+	assert.Equal(t, 5.0, promtestutil.ToFloat64(TrackedExpectedDaemonSets),
+		"re-tracking a known node must not reset its counts")
+	assert.Equal(t, 3.0, promtestutil.ToFloat64(TrackedReadyDaemonSets))
+	assert.Equal(t, 1.0, promtestutil.ToFloat64(TaintedNodes))
+}
+
 func TestAggregateGaugesSumAcrossNodes(t *testing.T) {
 	reset(t)
 

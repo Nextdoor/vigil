@@ -28,8 +28,16 @@ import "sync"
 // and report 0 while idle.
 //
 // The map is the single source of truth for both, so the aggregates cannot
-// drift from the per-node series they summarize. It also backs TaintedNodes,
-// which is the same aggregate expressed as a node count.
+// drift from the per-node series they summarize. It also backs TaintedNodes:
+// note that a node admitted by TrackNode counts there while contributing 0 to
+// both sums, so the two are not interchangeable during a discovery outage.
+//
+// mu guards the per-node series as well as the map, which serializes writers
+// and keeps the two from diverging permanently under concurrent updates to the
+// same node. It does not make a scrape atomic: Gather collects the vec and the
+// aggregate gauges separately without taking this lock, so a scrape landing
+// mid-update can still see them one update apart. That skew self-corrects on
+// the next write; a permanently wrong aggregate would not.
 type nodeAggregate struct {
 	mu    sync.Mutex
 	nodes map[string]nodeCounts
@@ -42,12 +50,31 @@ type nodeCounts struct {
 
 var trackedNodes = &nodeAggregate{nodes: make(map[string]nodeCounts)}
 
-// SetNodeExpected records the expected-DaemonSet count for a tracked node.
-func SetNodeExpected(nodeName string, expected int) {
-	ExpectedDaemonSets.WithLabelValues(nodeName).Set(float64(expected))
-
+// TrackNode records that vigil is waiting on a node, before its DaemonSet
+// counts are known. Discovery runs after this point and can fail, so admitting
+// the node here is what keeps TaintedNodes reporting it through a discovery
+// outage instead of reading 0 for nodes that are still tainted.
+//
+// No per-node series is created: an expected count of 0 would be indexed as
+// "nothing to wait for" rather than "not yet known". Until discovery reports,
+// the node counts towards TaintedNodes and contributes 0 to the sums.
+func TrackNode(nodeName string) {
 	trackedNodes.mu.Lock()
 	defer trackedNodes.mu.Unlock()
+
+	if _, ok := trackedNodes.nodes[nodeName]; ok {
+		return
+	}
+	trackedNodes.nodes[nodeName] = nodeCounts{}
+	trackedNodes.publishLocked()
+}
+
+// SetNodeExpected records the expected-DaemonSet count for a tracked node.
+func SetNodeExpected(nodeName string, expected int) {
+	trackedNodes.mu.Lock()
+	defer trackedNodes.mu.Unlock()
+
+	ExpectedDaemonSets.WithLabelValues(nodeName).Set(float64(expected))
 	c := trackedNodes.nodes[nodeName]
 	c.expected = expected
 	trackedNodes.nodes[nodeName] = c
@@ -56,10 +83,10 @@ func SetNodeExpected(nodeName string, expected int) {
 
 // SetNodeReady records the Ready-DaemonSet-pod count for a tracked node.
 func SetNodeReady(nodeName string, ready int) {
-	ReadyDaemonSets.WithLabelValues(nodeName).Set(float64(ready))
-
 	trackedNodes.mu.Lock()
 	defer trackedNodes.mu.Unlock()
+
+	ReadyDaemonSets.WithLabelValues(nodeName).Set(float64(ready))
 	c := trackedNodes.nodes[nodeName]
 	c.ready = ready
 	trackedNodes.nodes[nodeName] = c
@@ -69,11 +96,11 @@ func SetNodeReady(nodeName string, ready int) {
 // ForgetNode drops a node from the per-node series and the aggregates once it
 // is no longer tracked, keeping per-node cardinality bounded under churn.
 func ForgetNode(nodeName string) {
-	ExpectedDaemonSets.DeleteLabelValues(nodeName)
-	ReadyDaemonSets.DeleteLabelValues(nodeName)
-
 	trackedNodes.mu.Lock()
 	defer trackedNodes.mu.Unlock()
+
+	ExpectedDaemonSets.DeleteLabelValues(nodeName)
+	ReadyDaemonSets.DeleteLabelValues(nodeName)
 	delete(trackedNodes.nodes, nodeName)
 	trackedNodes.publishLocked()
 }
