@@ -42,6 +42,25 @@ type nodeCounts struct {
 
 var trackedNodes = &nodeAggregate{nodes: make(map[string]nodeCounts)}
 
+// TrackNode records that vigil is waiting on a node, before its DaemonSet
+// counts are known. Discovery runs after this point and can fail, so admitting
+// the node here is what keeps TaintedNodes reporting it through a discovery
+// outage instead of reading 0 for nodes that are still tainted.
+//
+// No per-node series is created: an expected count of 0 would be indexed as
+// "nothing to wait for" rather than "not yet known". Until discovery reports,
+// the node counts towards TaintedNodes and contributes 0 to the sums.
+func TrackNode(nodeName string) {
+	trackedNodes.mu.Lock()
+	defer trackedNodes.mu.Unlock()
+
+	if _, ok := trackedNodes.nodes[nodeName]; ok {
+		return
+	}
+	trackedNodes.nodes[nodeName] = nodeCounts{}
+	trackedNodes.publishLocked()
+}
+
 // SetNodeExpected records the expected-DaemonSet count for a tracked node.
 func SetNodeExpected(nodeName string, expected int) {
 	trackedNodes.mu.Lock()

@@ -89,6 +89,10 @@ func (r *NodeReadinessReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, nil
 	}
 
+	// Count the node as waiting now: discovery below can fail, and a tainted
+	// node vigil cannot evaluate must not read as no node at all.
+	metrics.TrackNode(node.Name)
+
 	nodeAge := time.Since(node.CreationTimestamp.Time).Round(time.Second)
 
 	// Check for timeout before doing discovery.
