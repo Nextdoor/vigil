@@ -40,8 +40,12 @@ exposition. Reach for the per-node series when drilling into which specific node
 is stuck.
 
 ```promql
-# Nodes waiting, and how far along they are — always plots, even when idle.
-vigil_tracked_ready_daemonsets / vigil_tracked_expected_daemonsets
+# How many nodes vigil is waiting on — always plots, even when idle.
+vigil_tainted_nodes
+
+# Progress across those nodes. clamp_min keeps the idle case at 0: PromQL
+# follows IEEE 754, so a bare 0/0 is NaN and renders as a gap.
+vigil_tracked_ready_daemonsets / clamp_min(vigil_tracked_expected_daemonsets, 1)
 
 # Drill-down: which node is short of its expected count right now?
 vigil_expected_daemonsets - vigil_ready_daemonsets > 0
