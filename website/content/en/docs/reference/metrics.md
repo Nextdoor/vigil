@@ -23,11 +23,15 @@ weight: 20
 ## Per-node vs. aggregate gauges
 
 The per-node gauges carry a `node` label and exist only while vigil is tracking
-that node — from the reconcile that first sees the startup taint until the taint
-is gone or the node is deleted. This keeps cardinality bounded under node churn,
-but it means that on an idle cluster the label-vec is empty, and the Prometheus
-client omits an empty label-vec from `/metrics` entirely: no samples, no `HELP`,
-no `TYPE`.
+that node, disappearing once the taint is gone or the node is deleted. They also
+start late, and not together: `vigil_expected_daemonsets` appears once DaemonSet
+discovery reports a count, and `vigil_ready_daemonsets` only after a readiness
+check succeeds — so a node whose readiness check keeps failing has an expected
+series and no ready series at all.
+
+This keeps cardinality bounded under node churn, but it means that on an idle
+cluster the label-vec is empty, and the Prometheus client omits an empty
+label-vec from `/metrics` entirely: no samples, no `HELP`, no `TYPE`.
 
 Dashboards built on the per-node gauges therefore read **no data** whenever
 nothing is tainted, which is indistinguishable from a broken or absent
@@ -56,7 +60,12 @@ max without (pod, instance) (
 )
 
 # Drill-down: which node is short of its expected count right now?
-max without (pod, instance) (vigil_expected_daemonsets - vigil_ready_daemonsets) > 0
+# "or 0 *" substitutes a zero for a node that has no ready series yet, so it is
+# still listed instead of being dropped by the vector match.
+max without (pod, instance) (
+  vigil_expected_daemonsets
+    - (vigil_ready_daemonsets or 0 * vigil_expected_daemonsets)
+) > 0
 ```
 
 ## Alerting
