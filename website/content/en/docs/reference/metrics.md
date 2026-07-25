@@ -39,16 +39,24 @@ are registered at process start, report `0` while idle, and never drop out of th
 exposition. Reach for the per-node series when drilling into which specific node
 is stuck.
 
+The default deployment is two replicas with leader election. Both serve
+`/metrics`, but only the leader ever sets these gauges, so the standby reports a
+permanent `0`. Wrap queries in `max without (pod, instance) (...)` to collapse
+the pair down to the leader's value — without it, panels plot two series and
+alerts fire on the standby.
+
 ```promql
 # How many nodes vigil is waiting on — always plots, even when idle.
-vigil_tainted_nodes
+max without (pod, instance) (vigil_tainted_nodes)
 
 # Progress across those nodes. clamp_min keeps the idle case at 0: PromQL
 # follows IEEE 754, so a bare 0/0 is NaN and renders as a gap.
-vigil_tracked_ready_daemonsets / clamp_min(vigil_tracked_expected_daemonsets, 1)
+max without (pod, instance) (
+  vigil_tracked_ready_daemonsets / clamp_min(vigil_tracked_expected_daemonsets, 1)
+)
 
 # Drill-down: which node is short of its expected count right now?
-vigil_expected_daemonsets - vigil_ready_daemonsets > 0
+max without (pod, instance) (vigil_expected_daemonsets - vigil_ready_daemonsets) > 0
 ```
 
 ## Alerting
