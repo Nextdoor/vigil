@@ -31,10 +31,10 @@ jobs:
         uses: runs-on/action@v2
 
       - name: Checkout code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
         with:
           install: true
           buildkitd-flags: --debug
@@ -43,7 +43,7 @@ jobs:
             network=host
 
       - name: Log in to the Container registry
-        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           registry: ${{ env.IMAGE_REGISTRY }}
           username: ${{ github.actor }}
@@ -51,7 +51,7 @@ jobs:
 
       - name: Docker metadata
         id: meta
-        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
         with:
           images: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}
           flavor: |
@@ -65,7 +65,7 @@ jobs:
 
       - name: Build and push
         id: build
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: .
           platforms: linux/amd64
@@ -90,10 +90,10 @@ jobs:
         uses: runs-on/action@v2
 
       - name: Checkout code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
         with:
           install: true
           buildkitd-flags: --debug
@@ -102,7 +102,7 @@ jobs:
             network=host
 
       - name: Log in to the Container registry
-        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           registry: ${{ env.IMAGE_REGISTRY }}
           username: ${{ github.actor }}
@@ -110,7 +110,7 @@ jobs:
 
       - name: Docker metadata
         id: meta
-        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
         with:
           images: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}
           flavor: |
@@ -124,7 +124,7 @@ jobs:
 
       - name: Build and push
         id: build
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: .
           platforms: linux/arm64
@@ -145,7 +145,7 @@ jobs:
 
     steps:
       - name: Log in to the Container registry
-        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           registry: ${{ env.IMAGE_REGISTRY }}
           username: ${{ github.actor }}
@@ -153,7 +153,7 @@ jobs:
 
       - name: Docker metadata
         id: meta
-        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
         with:
           images: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
@@ -176,7 +176,7 @@ jobs:
           fi
 
       - name: Create and push manifest
-        uses: int128/docker-manifest-create-action@8aac06098a12365ccdf99372dcfb453ccce8a0b0 # v2
+        uses: int128/docker-manifest-create-action@6edb43463bd4878b8cee224ca274378a3635d78f # v2
         with:
           tags: ${{ steps.meta.outputs.tags }}
           sources: |
@@ -185,7 +185,7 @@ jobs:
 
       - name: Create and push :latest manifest
         if: ${{ github.ref_type == 'tag' }}
-        uses: int128/docker-manifest-create-action@8aac06098a12365ccdf99372dcfb453ccce8a0b0 # v2
+        uses: int128/docker-manifest-create-action@6edb43463bd4878b8cee224ca274378a3635d78f # v2
         with:
           tags: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           sources: |
@@ -194,7 +194,7 @@ jobs:
 
       - name: Create and push :main manifest
         if: ${{ github.ref == 'refs/heads/main' }}
-        uses: int128/docker-manifest-create-action@8aac06098a12365ccdf99372dcfb453ccce8a0b0 # v2
+        uses: int128/docker-manifest-create-action@6edb43463bd4878b8cee224ca274378a3635d78f # v2
         with:
           tags: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:main
           sources: |
