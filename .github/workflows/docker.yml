@@ -40,7 +40,6 @@ jobs:
           buildkitd-flags: --debug
           driver-opts: |
             image=moby/buildkit:latest
-            network=host
 
       - name: Log in to the Container registry
         uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4
@@ -99,7 +98,6 @@ jobs:
           buildkitd-flags: --debug
           driver-opts: |
             image=moby/buildkit:latest
-            network=host
 
       - name: Log in to the Container registry
         uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4
